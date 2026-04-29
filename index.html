@@ -1,1 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTM Tracker</title>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body { font-family: Arial; padding:10px; background:#f4f6f8; }
+input, button { width:100%; padding:10px; margin-top:5px; }
+button { cursor:pointer; }
+.green { background:#28a745; color:white; }
+.red { background:#dc3545; color:white; }
+.pending { background:#f8d7da; }
+.returned { background:#d4edda; }
+</style>
+</head>
+
+<body>
+
+<h2>TTM Tracker</h2>
+
+<input id="name" placeholder="Name *">
+<input id="address" placeholder="Address *">
+<input id="dateSent" type="date">
+
+<button onclick="addEntry()">Save Entry</button>
+
+<hr>
+
+<table border="1" width="100%">
+<thead>
+<tr>
+<th>Name</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+
+<script>
+const supabase = window.supabase.createClient(
+  "https://aeezsewfoozizduzuidv.supabase.co",
+  "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
+);
+
+let data = [];
+
+// LOAD DATA
+async function loadData() {
+  const { data: rows, error } = await supabase
+    .from("Tracking")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (!error) {
+    data = rows;
+    render();
+  } else {
+    console.error(error);
+  }
+}
+
+// ADD ENTRY
+async function addEntry() {
+  const name = document.getElementById("name").value.trim();
+  const address = document.getElementById("address").value.trim();
+  const date_sent = document.getElementById("dateSent").value || new Date().toISOString().split("T")[0];
+
+  if (!name || !address) {
+    alert("Name and Address required");
+    return;
+  }
+
+  const { error } = await supabase.from("Tracking").insert([{
+    name,
+    address,
+    date_sent,
+    returned: false
+  }]);
+
+  if (error) {
+    console.error(error);
+    alert("Insert failed");
+  }
+
+  document.getElementById("name").value = "";
+  document.getElementById("address").value = "";
+  document.getElementById("dateSent").value = "";
+
+  loadData();
+}
+
+// TOGGLE RETURNED
+async function toggle(item) {
+  await supabase
+    .from("Tracking")
+    .update({ returned: !item.returned })
+    .eq("id", item.id);
+
+  loadData();
+}
+
+// DELETE
+async function remove(id) {
+  await supabase
+    .from("Tracking")
+    .delete()
+    .eq("id", id);
+
+  loadData();
+}
+
+// RENDER TABLE
+function render() {
+  const table = document.getElementById("table");
+  table.innerHTML = "";
+
+  data.forEach(item => {
+    const row = document.createElement("tr");
+    row.className = item.returned ? "returned" : "pending";
+
+    row.innerHTML = `
+      <td>${item.name || ""}</td>
+      <td>${item.returned ? "Returned" : "Pending"}</td>
+      <td>
+        <button class="green" onclick='toggle(${JSON.stringify(item)})'>Toggle</button>
+        <button class="red" onclick="remove('${item.id}')">Delete</button>
+      </td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+loadData();
+</script>
+
+</body>
+</html>
