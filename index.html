@@ -54,8 +54,6 @@ button {
   margin: 10px 0;
   padding: 10px;
   width: 100%;
-  box-sizing: border-box;
-  font-size: 14px;
 }
 
 table {
@@ -88,7 +86,7 @@ canvas {
   max-height: 260px;
 }
 
-/* PROFILE MODAL */
+/* modal */
 .modal {
   display: none;
   position: fixed;
@@ -127,7 +125,7 @@ canvas {
 <button class="green" onclick="addEntry()">Save Entry</button>
 
 <!-- SEARCH -->
-<input class="search" id="search" placeholder="Search name or address..." oninput="render()">
+<input class="search" id="search" placeholder="Search..." oninput="render()">
 
 <!-- TABLE -->
 <table>
@@ -136,6 +134,7 @@ canvas {
   <th>Name</th>
   <th>Address</th>
   <th>Sent</th>
+  <th>Received</th>
   <th>Status</th>
   <th>Actions</th>
 </tr>
@@ -143,20 +142,11 @@ canvas {
 <tbody id="table"></tbody>
 </table>
 
-<!-- CHARTS (BOTTOM) -->
+<!-- CHARTS -->
 <div class="section">
   <h3>📊 Analytics</h3>
   <canvas id="statusChart" height="120"></canvas>
   <canvas id="trendChart" height="120"></canvas>
-</div>
-
-<!-- LEADERBOARDS -->
-<div class="section">
-  <h3>⚡ Fast (≤30 days)</h3>
-  <table><tbody id="fastBoard"></tbody></table>
-
-  <h3>🐢 Slow (≥90 days)</h3>
-  <table><tbody id="slowBoard"></tbody></table>
 </div>
 
 <!-- PROFILE MODAL -->
@@ -179,15 +169,18 @@ let statusChart, trendChart;
 
 /* LOAD */
 async function loadData() {
-  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
+  const { data: rows } = await sb
+    .from("Tracking")
+    .select("*")
+    .order("created_at", { ascending: false });
+
   data = rows || [];
   render();
   updateDashboard();
   updateCharts();
-  updateLeaderboards();
 }
 
-/* ADD (AUTO CLEAR FIXED) */
+/* ADD */
 async function addEntry() {
   const n = document.getElementById("name");
   const a = document.getElementById("address");
@@ -199,6 +192,7 @@ async function addEntry() {
     name: n.value,
     address: a.value,
     date_sent: d.value || new Date().toISOString().split("T")[0],
+    date_received: null,
     returned: false,
     signature_status: "pending"
   }]);
@@ -212,13 +206,26 @@ async function addEntry() {
   loadData();
 }
 
-/* SEARCH FILTER */
-function filtered() {
-  const q = document.getElementById("search").value.toLowerCase();
-  return data.filter(d =>
-    (d.name || "").toLowerCase().includes(q) ||
-    (d.address || "").toLowerCase().includes(q)
-  );
+/* UPDATE FIELD */
+async function updateField(id, field, value) {
+  await sb.from("Tracking").update({ [field]: value }).eq("id", id);
+}
+
+/* STATUS */
+async function setStatus(id, status) {
+  await sb.from("Tracking").update({
+    signature_status: status,
+    returned: true
+  }).eq("id", id);
+
+  loadData();
+}
+
+/* DELETE */
+async function remove(id) {
+  if (!confirm("Delete?")) return;
+  await sb.from("Tracking").delete().eq("id", id);
+  loadData();
 }
 
 /* DASHBOARD */
@@ -264,81 +271,69 @@ function updateCharts() {
   });
 }
 
-/* LEADERBOARDS */
-function updateLeaderboards() {
-  const fast=[], slow=[];
-
-  data.forEach(d=>{
-    if(!d.date_sent||!d.date_received) return;
-    const days = (new Date(d.date_received)-new Date(d.date_sent))/86400000;
-
-    if(days<=30) fast.push({n:d.name,d:Math.floor(days)});
-    if(days>=90) slow.push({n:d.name,d:Math.floor(days)});
-  });
-
-  document.getElementById("fastBoard").innerHTML =
-    fast.map(x=>`<tr><td>${x.n}</td><td>${x.d}</td></tr>`).join("");
-
-  document.getElementById("slowBoard").innerHTML =
-    slow.map(x=>`<tr><td>${x.n}</td><td>${x.d}</td></tr>`).join("");
-}
-
 /* TABLE */
 function render() {
-  const t = document.getElementById("table");
-  t.innerHTML = "";
+  const q = document.getElementById("search").value?.toLowerCase() || "";
+  const tbody = document.getElementById("table");
+  tbody.innerHTML = "";
 
-  filtered().forEach(d=>{
-    const st = d.signature_status||"pending";
+  data
+    .filter(d =>
+      (d.name||"").toLowerCase().includes(q) ||
+      (d.address||"").toLowerCase().includes(q)
+    )
+    .forEach(d => {
 
-    const tr=document.createElement("tr");
-    tr.className =
-      st==="returned_signed"?"signed":
-      st==="returned_unsigned"?"unsigned":"pending";
+      const status = d.signature_status || "pending";
 
-    tr.innerHTML=`
-      <td onclick="openProfile('${d.name}')">${d.name||""}</td>
-      <td>${d.address||""}</td>
-      <td>${d.date_sent||""}</td>
-      <td>${st}</td>
-      <td>
-        <button class="green" onclick="setStatus('${d.id}','returned_signed')">Signed</button>
-        <button class="orange" onclick="setStatus('${d.id}','returned_unsigned')">Not Signed</button>
-        <button class="red" onclick="remove('${d.id}')">Del</button>
-      </td>
-    `;
-    t.appendChild(tr);
-  });
-}
+      const tr = document.createElement("tr");
+      tr.className =
+        status==="returned_signed"?"signed":
+        status==="returned_unsigned"?"unsigned":"pending";
 
-/* STATUS */
-async function setStatus(id,s){
-  await sb.from("Tracking").update({signature_status:s,returned:true}).eq("id",id);
-  loadData();
-}
+      tr.innerHTML = `
+        <td onclick="openProfile('${d.name}')">${d.name||""}</td>
+        <td>${d.address||""}</td>
+        <td>${d.date_sent||""}</td>
 
-/* DELETE */
-async function remove(id){
-  if(!confirm("Delete?"))return;
-  await sb.from("Tracking").delete().eq("id",id);
-  loadData();
+        <!-- ✅ RESTORED DATE RECEIVED -->
+        <td>
+          <input type="date"
+            value="${d.date_received || ""}"
+            onchange="updateField('${d.id}','date_received',this.value)">
+        </td>
+
+        <td>${status}</td>
+        <td>
+          <button class="green" onclick="setStatus('${d.id}','returned_signed')">Signed</button>
+          <button class="orange" onclick="setStatus('${d.id}','returned_unsigned')">Not Signed</button>
+          <button class="red" onclick="remove('${d.id}')">Del</button>
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+    });
 }
 
 /* PROFILE */
 function openProfile(name){
-  const p=data.filter(d=>d.name===name);
-  document.getElementById("pName").innerText=name;
-  document.getElementById("pHistory").innerHTML=
-    p.map(x=>`<div>${x.date_sent} → ${x.signature_status}</div>`).join("");
-  document.getElementById("modal").style.display="block";
+  const p = data.filter(d => d.name === name);
+
+  document.getElementById("pName").innerText = name;
+  document.getElementById("pHistory").innerHTML =
+    p.map(x =>
+      `<div>${x.date_sent} → ${x.signature_status || "pending"}</div>`
+    ).join("");
+
+  document.getElementById("modal").style.display = "block";
 }
 
 function closeModal(){
-  document.getElementById("modal").style.display="none";
+  document.getElementById("modal").style.display = "none";
 }
 
 loadData();
-setInterval(loadData,30000);
+setInterval(loadData, 30000);
 </script>
 
 </body>
