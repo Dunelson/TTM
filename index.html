@@ -3,68 +3,72 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Tracker</title>
+<title>TTM Tracker Pro</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body { font-family: Arial; padding:15px; background:#f4f6f8; margin:0; }
+body {
+  font-family: Arial;
+  background: #f4f6f8;
+  margin: 0;
+  padding: 15px;
+}
+
+h2 { margin-top: 0; }
 
 input, button {
-  width:100%;
-  padding:12px;
-  margin-top:8px;
-  box-sizing:border-box;
+  padding: 10px;
+  margin-top: 6px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 button {
-  cursor:pointer;
-  border:none;
-  border-radius:4px;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
 }
 
-.green { background:#28a745; color:white; }
-.red { background:#dc3545; color:white; }
-
-.pending { background:#f8d7da; }
-.returned { background:#d4edda; }
+.green { background: #28a745; color: white; }
+.red { background: #dc3545; color: white; }
 
 table {
-  width:100%;
-  border-collapse:collapse;
-  margin-top:20px;
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+  font-size: 14px;
 }
 
 th, td {
-  padding:10px;
-  border:1px solid #ccc;
-  font-size:14px;
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: left;
 }
 
 th {
-  background:#333;
-  color:white;
+  background: #333;
+  color: white;
 }
 
-.actions button {
-  width:auto;
-  padding:6px 10px;
-  margin-right:5px;
+.pending { background: #ffe5e5; }
+.returned { background: #e6ffe6; }
+
+td[contenteditable="true"] {
+  background: #fffbe6;
 }
 </style>
 </head>
 
 <body>
 
-<h2>TTM Tracker</h2>
+<h2>TTM Tracker Pro</h2>
 
 <input id="name" placeholder="Name *">
 <input id="address" placeholder="Address *">
 <input id="dateSent" type="date">
 
 <button class="green" onclick="addEntry()">Save Entry</button>
-
-<hr>
 
 <table>
 <thead>
@@ -73,6 +77,8 @@ th {
   <th>Address</th>
   <th>Sent</th>
   <th>Received</th>
+  <th>RTS</th>
+  <th>Auto</th>
   <th>Status</th>
   <th>Actions</th>
 </tr>
@@ -90,7 +96,7 @@ const sb = window.supabase.createClient(
 let data = [];
 
 /* =========================
-   LOAD DATA
+   LOAD
 ========================= */
 async function loadData() {
   const { data: rows, error } = await sb
@@ -107,7 +113,7 @@ async function loadData() {
 }
 
 /* =========================
-   ADD ENTRY
+   ADD
 ========================= */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
@@ -121,7 +127,7 @@ async function addEntry() {
     return;
   }
 
-  const { error } = await sb.from("Tracking").insert([{
+  await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
@@ -131,12 +137,6 @@ async function addEntry() {
     received_auto: null
   }]);
 
-  if (error) {
-    console.error(error);
-    alert(error.message);
-    return;
-  }
-
   document.getElementById("name").value = "";
   document.getElementById("address").value = "";
   document.getElementById("dateSent").value = "";
@@ -145,26 +145,20 @@ async function addEntry() {
 }
 
 /* =========================
-   TOGGLE RETURNED
+   UPDATE FIELD
 ========================= */
-async function toggle(item) {
+async function updateField(id, field, value) {
   await sb
     .from("Tracking")
-    .update({ returned: !item.returned })
-    .eq("id", item.id);
-
-  loadData();
+    .update({ [field]: value })
+    .eq("id", id);
 }
 
 /* =========================
-   DELETE
+   TOGGLE RETURN
 ========================= */
-async function remove(id) {
-  await sb
-    .from("Tracking")
-    .delete()
-    .eq("id", id);
-
+async function toggleReturned(item) {
+  await updateField(item.id, "returned", !item.returned);
   loadData();
 }
 
@@ -175,27 +169,48 @@ function render() {
   const tbody = document.getElementById("table");
   tbody.innerHTML = "";
 
-  if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No entries</td></tr>`;
-    return;
-  }
-
   data.forEach(item => {
     const tr = document.createElement("tr");
     tr.className = item.returned ? "returned" : "pending";
 
     tr.innerHTML = `
-      <td>${item.name || ""}</td>
-      <td>${item.address || ""}</td>
-      <td>${item.date_sent || ""}</td>
-      <td>${item.date_received || "-"}</td>
-      <td>${item.returned ? "Returned" : "Pending"}</td>
-      <td class="actions">
-        <button class="green" onclick='toggle(${JSON.stringify(item)})'>
+      <td contenteditable="true" onblur="updateField('${item.id}','name',this.innerText)">
+        ${item.name || ""}
+      </td>
+
+      <td contenteditable="true" onblur="updateField('${item.id}','address',this.innerText)">
+        ${item.address || ""}
+      </td>
+
+      <td>
+        <input type="date" value="${item.date_sent || ""}"
+        onchange="updateField('${item.id}','date_sent',this.value)">
+      </td>
+
+      <td>
+        <input type="date" value="${item.date_received || ""}"
+        onchange="updateField('${item.id}','date_received',this.value)">
+      </td>
+
+      <td contenteditable="true" onblur="updateField('${item.id}','rts',this.innerText)">
+        ${item.rts || ""}
+      </td>
+
+      <td>
+        <select onchange="updateField('${item.id}','received_auto',this.value)">
+          <option value="">-</option>
+          <option value="true" ${item.received_auto == "true" ? "selected" : ""}>Yes</option>
+          <option value="false" ${item.received_auto == "false" ? "selected" : ""}>No</option>
+        </select>
+      </td>
+
+      <td>
+        ${item.returned ? "✅ Returned" : "⏳ Pending"}
+      </td>
+
+      <td>
+        <button class="green" onclick='toggleReturned(${JSON.stringify(item)})'>
           Toggle
-        </button>
-        <button class="red" onclick="remove('${item.id}')">
-          Delete
         </button>
       </td>
     `;
