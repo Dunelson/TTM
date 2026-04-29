@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TTM Tracker Pro v4</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body {
+  font-family: Arial;
+  margin: 0;
+  background: #f4f6f8;
+  padding: 10px;
+}
+
+h1 { text-align:center; }
+
+.container {
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+}
+
+.card {
+  background:white;
+  padding:15px;
+  border-radius:10px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+
+input, button {
+  width:100%;
+  padding:10px;
+  margin-top:5px;
+}
+
+button {
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.primary { background:#007bff; color:white; }
+.green { background:#28a745; color:white; }
+.red { background:#dc3545; color:white; }
+.gray { background:#6c757d; color:white; }
+
+.stats {
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:8px;
+}
+
+.stat {
+  background:#fff;
+  padding:10px;
+  border-radius:8px;
+  text-align:center;
+}
+
+table {
+  width:100%;
+  border-collapse:collapse;
+}
+
+td, th {
+  padding:8px;
+  border-bottom:1px solid #ddd;
+  font-size:13px;
+}
+
+.returned { background:#d4edda; }
+.pending { background:#f8d7da; }
+.stale { outline:2px solid orange; }
+
+.small-btn {
+  padding:8px;
+  font-size:12px;
+  margin-top:5px;
+}
+
+.chart {
+  height:120px;
+  background:linear-gradient(to right,#007bff, #28a745);
+  border-radius:8px;
+  margin-top:10px;
+  opacity:0.3;
+}
+
+@media(min-width:900px){
+  .container{grid-template-columns:1fr 2fr;}
+}
+</style>
+</head>
+
+<body>
+
+<h1>TTM Tracker Pro v4</h1>
+
+<div class="container">
+
+<!-- LEFT -->
+<div class="card">
+
+<h3>Add Entry</h3>
+
+<input id="name" placeholder="Name *"/>
+<input id="address" placeholder="Address *"/>
+<input id="dateSent" type="date"/>
+
+<button class="primary" onclick="addEntry()">Save Entry</button>
+
+<hr>
+
+<h3>Search</h3>
+<input id="search" oninput="render()" placeholder="Search..."/>
+
+<h3>Stats</h3>
+<div class="stats">
+  <div class="stat">Sent<br><b id="sent">0</b></div>
+  <div class="stat">Returned<br><b id="returned">0</b></div>
+  <div class="stat">Pending<br><b id="pending">0</b></div>
+  <div class="stat">Avg Days<br><b id="avg">0</b></div>
+</div>
+
+<div class="chart"></div>
+
+</div>
+
+<!-- RIGHT -->
+<div class="card">
+
+<h3>Entries</h3>
+
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody id="table"></tbody>
+</table>
+
+</div>
+
+</div>
+
+<script>
+const SUPABASE_URL = "https://aeezsewfoozizduzuidv.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz";
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let data = [];
+
+function daysBetween(a,b){
+  return Math.ceil((new Date(b)-new Date(a))/(1000*60*60*24));
+}
+
+async function loadData(){
+  const { data:rows } = await supabase
+    .from("Tracking")
+    .select("*")
+    .order("created_at",{ascending:false});
+
+  data = rows || [];
+  render();
+}
+
+supabase
+  .channel('realtime')
+  .on('postgres_changes',{event:'*',schema:'public',table:'Tracking'},loadData)
+  .subscribe();
+
+async function addEntry(){
+  const name = document.getElementById("name").value.trim();
+  const address = document.getElementById("address").value.trim();
+  const date_sent = document.getElementById("dateSent").value || new Date().toISOString().split("T")[0];
+
+  if(!name || !address) return alert("Name & Address required");
+
+  await supabase.from("Tracking").insert([{
+    name,
+    address,
+    date_sent,
+    returned:false
+  }]);
+
+  document.getElementById("name").value="";
+  document.getElementById("address").value="";
+  document.getElementById("dateSent").value="";
+
+  loadData();
+}
+
+async function toggle(item){
+  await supabase
+    .from("Tracking")
+    .update({returned:!item.returned})
+    .eq("id",item.id);
+
+  loadData();
+}
+
+async function remove(id){
+  if(!confirm("Delete?")) return;
+
+  await supabase
+    .from("Tracking")
+    .delete()
+    .eq("id",id);
+
+  loadData();
+}
+
+function render(){
+  const table = document.getElementById("table");
+  table.innerHTML="";
+
+  const search = document.getElementById("search").value.toLowerCase();
+
+  let filtered = data.filter(d =>
+    (d.name||"").toLowerCase().includes(search) ||
+    (d.address||"").toLowerCase().includes(search)
+  );
+
+  let returned=0;
+  let total=filtered.length;
+  let totalDays=0;
+  let count=0;
+
+  filtered.forEach(item=>{
+    if(item.returned) returned++;
+
+    let rowClass = item.returned ? "returned":"pending";
+
+    // 🔔 long pending warning
+    if(!item.returned && item.date_sent){
+      const age = daysBetween(item.date_sent,new Date().toISOString());
+      if(age > 14) rowClass += " stale";
+    }
+
+    if(item.returned && item.date_sent && item.date_received){
+      totalDays += daysBetween(item.date_sent,item.date_received);
+      count++;
+    }
+
+    const tr=document.createElement("tr");
+    tr.className=rowClass;
+
+    tr.innerHTML=`
+      <td>${item.name||""}</td>
+      <td>${item.returned?"Returned":"Pending"}</td>
+      <td>
+        <button class="small-btn ${item.returned?'red':'green'}"
+        onclick='toggle(${JSON.stringify(item)})'>
+        Toggle</button>
+
+        <button class="small-btn red"
+        onclick="remove('${item.id}')">Del</button>
+      </td>
+    `;
+
+    table.appendChild(tr);
+  });
+
+  document.getElementById("sent").innerText=data.length;
+  document.getElementById("returned").innerText=returned;
+  document.getElementById("pending").innerText=data.length-returned;
+
+  document.getElementById("avg").innerText=
+    count ? Math.round(totalDays/count) : 0;
+}
+
+loadData();
+</script>
+
+</body>
+</html>
