@@ -42,40 +42,49 @@ button { cursor:pointer; }
 </table>
 
 <script>
-const supabase = window.supabase.createClient(
+/* =========================
+   SUPABASE INIT (FIXED)
+========================= */
+const sb = window.supabase.createClient(
   "https://aeezsewfoozizduzuidv.supabase.co",
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
 let data = [];
 
-// LOAD DATA
+/* =========================
+   LOAD DATA
+========================= */
 async function loadData() {
-  const { data: rows, error } = await supabase
+  const { data: rows, error } = await sb
     .from("Tracking")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (!error) {
-    data = rows;
+    data = rows || [];
     render();
   } else {
     console.error(error);
   }
 }
 
-// ADD ENTRY
+/* =========================
+   ADD ENTRY
+========================= */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const address = document.getElementById("address").value.trim();
-  const date_sent = document.getElementById("dateSent").value || new Date().toISOString().split("T")[0];
+  const date_sent =
+    document.getElementById("dateSent").value ||
+    new Date().toISOString().split("T")[0];
 
   if (!name || !address) {
     alert("Name and Address required");
     return;
   }
 
-  const { error } = await supabase.from("Tracking").insert([{
+  const { error } = await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
@@ -85,6 +94,7 @@ async function addEntry() {
   if (error) {
     console.error(error);
     alert("Insert failed");
+    return;
   }
 
   document.getElementById("name").value = "";
@@ -94,9 +104,11 @@ async function addEntry() {
   loadData();
 }
 
-// TOGGLE RETURNED
+/* =========================
+   TOGGLE RETURNED
+========================= */
 async function toggle(item) {
-  await supabase
+  await sb
     .from("Tracking")
     .update({ returned: !item.returned })
     .eq("id", item.id);
@@ -104,9 +116,11 @@ async function toggle(item) {
   loadData();
 }
 
-// DELETE
+/* =========================
+   DELETE
+========================= */
 async function remove(id) {
-  await supabase
+  await sb
     .from("Tracking")
     .delete()
     .eq("id", id);
@@ -114,7 +128,9 @@ async function remove(id) {
   loadData();
 }
 
-// RENDER TABLE
+/* =========================
+   RENDER TABLE
+========================= */
 function render() {
   const table = document.getElementById("table");
   table.innerHTML = "";
