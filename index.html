@@ -17,7 +17,7 @@ body {
 
 h2 { margin-top: 0; }
 
-input, button {
+input, button, select {
   padding: 10px;
   margin-top: 6px;
   width: 100%;
@@ -145,7 +145,7 @@ async function addEntry() {
 }
 
 /* =========================
-   UPDATE FIELD
+   UPDATE
 ========================= */
 async function updateField(id, field, value) {
   await sb
@@ -159,6 +159,20 @@ async function updateField(id, field, value) {
 ========================= */
 async function toggleReturned(item) {
   await updateField(item.id, "returned", !item.returned);
+  loadData();
+}
+
+/* =========================
+   DELETE
+========================= */
+async function remove(id) {
+  if (!confirm("Delete this entry?")) return;
+
+  await sb
+    .from("Tracking")
+    .delete()
+    .eq("id", id);
+
   loadData();
 }
 
@@ -192,15 +206,20 @@ function render() {
         onchange="updateField('${item.id}','date_received',this.value)">
       </td>
 
-      <td contenteditable="true" onblur="updateField('${item.id}','rts',this.innerText)">
-        ${item.rts || ""}
+      <td>
+        <select onchange="updateField('${item.id}','rts',this.value)">
+          <option value="">-</option>
+          <option value="Yes" ${item.rts === "Yes" ? "selected" : ""}>Yes</option>
+          <option value="No" ${item.rts === "No" ? "selected" : ""}>No</option>
+          <option value="Partial" ${item.rts === "Partial" ? "selected" : ""}>Partial</option>
+        </select>
       </td>
 
       <td>
         <select onchange="updateField('${item.id}','received_auto',this.value)">
           <option value="">-</option>
-          <option value="true" ${item.received_auto == "true" ? "selected" : ""}>Yes</option>
-          <option value="false" ${item.received_auto == "false" ? "selected" : ""}>No</option>
+          <option value="Yes" ${item.received_auto === "Yes" ? "selected" : ""}>Yes</option>
+          <option value="No" ${item.received_auto === "No" ? "selected" : ""}>No</option>
         </select>
       </td>
 
@@ -209,9 +228,8 @@ function render() {
       </td>
 
       <td>
-        <button class="green" onclick='toggleReturned(${JSON.stringify(item)})'>
-          Toggle
-        </button>
+        <button class="green" onclick='toggleReturned(${JSON.stringify(item)})'>Toggle</button>
+        <button class="red" onclick="remove('${item.id}')">Delete</button>
       </td>
     `;
 
