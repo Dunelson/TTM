@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Tracker App</title>
+<title>TTM Tracker</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -16,7 +16,7 @@ body {
   background: #f4f6f8;
 }
 
-h2 { margin: 0 0 10px 0; }
+h2 { margin-bottom: 10px; }
 
 .dashboard {
   display: grid;
@@ -33,7 +33,7 @@ h2 { margin: 0 0 10px 0; }
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-input, button {
+input, select, button {
   width: 100%;
   padding: 10px;
   margin-top: 6px;
@@ -51,9 +51,7 @@ button {
 .orange { background: #fd7e14; color: white; }
 
 .search {
-  margin: 10px 0;
-  padding: 10px;
-  width: 100%;
+  margin-top: 10px;
 }
 
 table {
@@ -76,14 +74,13 @@ th {
 
 .pending { background: #fff3cd; }
 .signed { background: #d4edda; }
-.unsigned { background: #f8d7da; }
+.not-signed { background: #f8d7da; }
 
 canvas {
   background: white;
   border-radius: 8px;
   margin-top: 10px;
   padding: 10px;
-  max-height: 260px;
 }
 
 /* modal */
@@ -108,24 +105,38 @@ canvas {
 
 <body>
 
-<h2>TTM Tracker App</h2>
+<h2>TTM Tracker</h2>
 
 <!-- DASHBOARD -->
 <div class="dashboard">
   <div class="card"><h3 id="total">0</h3><small>Total</small></div>
   <div class="card"><h3 id="pending">0</h3><small>Pending</small></div>
   <div class="card"><h3 id="signed">0</h3><small>Signed</small></div>
-  <div class="card"><h3 id="unsigned">0</h3><small>Unsigned</small></div>
+  <div class="card"><h3 id="notSigned">0</h3><small>Not Signed</small></div>
 </div>
 
 <!-- INPUT -->
-<input id="name" placeholder="Name *">
-<input id="address" placeholder="Address *">
+<input id="name" placeholder="Name">
+<input id="address" placeholder="Address">
 <input id="dateSent" type="date">
+
+<select id="rts">
+  <option value="false">RTS: No</option>
+  <option value="true">RTS: Yes</option>
+</select>
+
+<select id="received_auto">
+  <option value="false">Auto: No</option>
+  <option value="true">Auto: Yes</option>
+</select>
+
 <button class="green" onclick="addEntry()">Save Entry</button>
 
 <!-- SEARCH -->
 <input class="search" id="search" placeholder="Search..." oninput="render()">
+
+<!-- PIE ONLY -->
+<canvas id="statusChart" height="140"></canvas>
 
 <!-- TABLE -->
 <table>
@@ -135,6 +146,8 @@ canvas {
   <th>Address</th>
   <th>Sent</th>
   <th>Received</th>
+  <th>RTS</th>
+  <th>Legitimacy</th>
   <th>Status</th>
   <th>Actions</th>
 </tr>
@@ -142,14 +155,7 @@ canvas {
 <tbody id="table"></tbody>
 </table>
 
-<!-- CHARTS -->
-<div class="section">
-  <h3>📊 Analytics</h3>
-  <canvas id="statusChart" height="120"></canvas>
-  <canvas id="trendChart" height="120"></canvas>
-</div>
-
-<!-- PROFILE MODAL -->
+<!-- PROFILE -->
 <div id="modal" class="modal" onclick="closeModal()">
   <div class="modal-content" onclick="event.stopPropagation()">
     <h3 id="pName"></h3>
@@ -165,43 +171,62 @@ const sb = window.supabase.createClient(
 );
 
 let data = [];
-let statusChart, trendChart;
+let chart;
+
+/* LEGITIMACY ENGINE */
+function getLegitimacy(d) {
+  if (!d.date_sent || !d.date_received) return "Unknown";
+
+  const days =
+    (new Date(d.date_received) - new Date(d.date_sent)) /
+    (1000 * 60 * 60 * 24);
+
+  const auto = d.received_auto === "true" || d.received_auto === true;
+  const rts = d.rts === "true" || d.rts === true;
+
+  if (d.returned && (days <= 15 || auto)) {
+    return "Probable Secretarial/Autopen";
+  }
+
+  if (d.returned && !rts && days > 15 && days <= 120) {
+    return "Real";
+  }
+
+  return "Unknown";
+}
 
 /* LOAD */
 async function loadData() {
-  const { data: rows } = await sb
-    .from("Tracking")
-    .select("*")
-    .order("created_at", { ascending: false });
-
+  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
   render();
-  updateDashboard();
-  updateCharts();
+  stats();
+  pie();
 }
 
 /* ADD */
 async function addEntry() {
-  const n = document.getElementById("name");
-  const a = document.getElementById("address");
-  const d = document.getElementById("dateSent");
+  const name = document.getElementById("name").value;
+  const address = document.getElementById("address").value;
+  const date_sent = document.getElementById("dateSent").value;
+  const rts = document.getElementById("rts").value;
+  const received_auto = document.getElementById("received_auto").value;
 
-  if (!n.value || !a.value) return alert("Required");
+  if (!name || !address) return alert("Missing fields");
 
-  const { error } = await sb.from("Tracking").insert([{
-    name: n.value,
-    address: a.value,
-    date_sent: d.value || new Date().toISOString().split("T")[0],
-    date_received: null,
+  await sb.from("Tracking").insert([{
+    name,
+    address,
+    date_sent,
     returned: false,
-    signature_status: "pending"
+    rts,
+    received_auto,
+    date_received: null
   }]);
 
-  if (error) return alert(error.message);
-
-  n.value = "";
-  a.value = "";
-  d.value = "";
+  document.getElementById("name").value = "";
+  document.getElementById("address").value = "";
+  document.getElementById("dateSent").value = "";
 
   loadData();
 }
@@ -214,8 +239,8 @@ async function updateField(id, field, value) {
 /* STATUS */
 async function setStatus(id, status) {
   await sb.from("Tracking").update({
-    signature_status: status,
-    returned: true
+    returned: true,
+    signature_status: status
   }).eq("id", id);
 
   loadData();
@@ -228,54 +253,39 @@ async function remove(id) {
   loadData();
 }
 
-/* DASHBOARD */
-function updateDashboard() {
+/* STATS */
+function stats() {
   document.getElementById("total").innerText = data.length;
   document.getElementById("pending").innerText = data.filter(d => !d.returned).length;
-  document.getElementById("signed").innerText = data.filter(d => d.signature_status === "returned_signed").length;
-  document.getElementById("unsigned").innerText = data.filter(d => d.signature_status === "returned_unsigned").length;
+  document.getElementById("signed").innerText = data.filter(d => d.signature_status === "signed").length;
+  document.getElementById("notSigned").innerText = data.filter(d => d.signature_status === "not_signed").length;
 }
 
-/* CHARTS */
-function updateCharts() {
-  const s = data.filter(d => d.signature_status === "returned_signed").length;
-  const u = data.filter(d => d.signature_status === "returned_unsigned").length;
+/* PIE */
+function pie() {
+  const s = data.filter(d => d.signature_status === "signed").length;
+  const n = data.filter(d => d.signature_status === "not_signed").length;
   const p = data.filter(d => !d.returned).length;
 
-  if (statusChart) statusChart.destroy();
-  statusChart = new Chart(document.getElementById("statusChart"), {
+  if (chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("statusChart"), {
     type: "pie",
     data: {
-      labels: ["Pending","Signed","Unsigned"],
-      datasets: [{ data:[p,s,u], backgroundColor:["#ffc107","#28a745","#dc3545"] }]
-    }
-  });
-
-  const m = {};
-  data.forEach(d => {
-    if (!d.date_sent) return;
-    const k = d.date_sent.slice(0,7);
-    m[k] = (m[k]||0)+1;
-  });
-
-  const labels = Object.keys(m).sort();
-  const values = labels.map(x => m[x]);
-
-  if (trendChart) trendChart.destroy();
-  trendChart = new Chart(document.getElementById("trendChart"), {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{ label:"Sent", data:values, borderColor:"#007bff", fill:false }]
+      labels: ["Pending", "Signed", "Not Signed"],
+      datasets: [{
+        data: [p, s, n],
+        backgroundColor: ["#ffc107", "#28a745", "#dc3545"]
+      }]
     }
   });
 }
 
-/* TABLE */
+/* RENDER */
 function render() {
-  const q = document.getElementById("search").value?.toLowerCase() || "";
-  const tbody = document.getElementById("table");
-  tbody.innerHTML = "";
+  const q = document.getElementById("search").value.toLowerCase();
+  const t = document.getElementById("table");
+  t.innerHTML = "";
 
   data
     .filter(d =>
@@ -284,56 +294,64 @@ function render() {
     )
     .forEach(d => {
 
-      const status = d.signature_status || "pending";
+      const status =
+        d.signature_status === "signed" ? "Signed" :
+        d.signature_status === "not_signed" ? "Not Signed" :
+        "Pending";
 
-      const tr = document.createElement("tr");
-      tr.className =
-        status==="returned_signed"?"signed":
-        status==="returned_unsigned"?"unsigned":"pending";
+      const cls =
+        status === "Signed" ? "signed" :
+        status === "Not Signed" ? "not-signed" :
+        "pending";
 
-      tr.innerHTML = `
-        <td onclick="openProfile('${d.name}')">${d.name||""}</td>
-        <td>${d.address||""}</td>
-        <td>${d.date_sent||""}</td>
+      t.innerHTML += `
+        <tr class="${cls}">
+          <td onclick="openProfile('${d.name}')">${d.name||""}</td>
+          <td>${d.address||""}</td>
 
-        <!-- ✅ RESTORED DATE RECEIVED -->
-        <td>
-          <input type="date"
-            value="${d.date_received || ""}"
-            onchange="updateField('${d.id}','date_received',this.value)">
-        </td>
+          <td>${d.date_sent||""}</td>
 
-        <td>${status}</td>
-        <td>
-          <button class="green" onclick="setStatus('${d.id}','returned_signed')">Signed</button>
-          <button class="orange" onclick="setStatus('${d.id}','returned_unsigned')">Not Signed</button>
-          <button class="red" onclick="remove('${d.id}')">Del</button>
-        </td>
+          <td>
+            <input type="date"
+              value="${d.date_received||""}"
+              onchange="updateField('${d.id}','date_received',this.value)">
+          </td>
+
+          <td>
+            <select onchange="updateField('${d.id}','rts',this.value)">
+              <option value="false" ${!d.rts ? "selected":""}>No</option>
+              <option value="true" ${d.rts ? "selected":""}>Yes</option>
+            </select>
+          </td>
+
+          <td>${getLegitimacy(d)}</td>
+
+          <td>${status}</td>
+
+          <td>
+            <button class="green" onclick="setStatus('${d.id}','signed')">Signed</button>
+            <button class="orange" onclick="setStatus('${d.id}','not_signed')">Not Signed</button>
+            <button class="red" onclick="remove('${d.id}')">Del</button>
+          </td>
+        </tr>
       `;
-
-      tbody.appendChild(tr);
     });
 }
 
 /* PROFILE */
-function openProfile(name){
+function openProfile(name) {
   const p = data.filter(d => d.name === name);
-
   document.getElementById("pName").innerText = name;
   document.getElementById("pHistory").innerHTML =
-    p.map(x =>
-      `<div>${x.date_sent} → ${x.signature_status || "pending"}</div>`
-    ).join("");
-
+    p.map(x => `<div>${x.date_sent} → ${x.signature_status||"pending"}</div>`).join("");
   document.getElementById("modal").style.display = "block";
 }
 
-function closeModal(){
+function closeModal() {
   document.getElementById("modal").style.display = "none";
 }
 
 loadData();
-setInterval(loadData, 30000);
 </script>
 
 </body>
