@@ -4,235 +4,208 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TTM Tracker</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
-    body { 
-        font-family: Arial, sans-serif; 
-        padding: 15px; 
-        background: #f4f6f8; 
-        margin: 0;
-    }
-    h2 { color: #333; }
-    input, button { 
-        width: 100%; 
-        padding: 12px; 
-        margin-top: 8px; 
-        box-sizing: border-box;
-        font-size: 16px;
-    }
-    button { 
-        cursor: pointer; 
-        border: none;
-        border-radius: 4px;
-    }
-    .green { background: #28a745; color: white; }
-    .red { background: #dc3545; color: white; }
-    .pending { background: #f8d7da; }
-    .returned { background: #d4edda; }
-    
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-    }
-    th, td {
-        padding: 10px;
-        text-align: left;
-        border: 1px solid #ccc;
-    }
-    th {
-        background: #333;
-        color: white;
-    }
-    .actions button {
-        margin-right: 5px;
-        padding: 6px 12px;
-        font-size: 14px;
-    }
+body { font-family: Arial; padding:15px; background:#f4f6f8; margin:0; }
+
+input, button {
+  width:100%;
+  padding:12px;
+  margin-top:8px;
+  box-sizing:border-box;
+}
+
+button {
+  cursor:pointer;
+  border:none;
+  border-radius:4px;
+}
+
+.green { background:#28a745; color:white; }
+.red { background:#dc3545; color:white; }
+
+.pending { background:#f8d7da; }
+.returned { background:#d4edda; }
+
+table {
+  width:100%;
+  border-collapse:collapse;
+  margin-top:20px;
+}
+
+th, td {
+  padding:10px;
+  border:1px solid #ccc;
+  font-size:14px;
+}
+
+th {
+  background:#333;
+  color:white;
+}
+
+.actions button {
+  width:auto;
+  padding:6px 10px;
+  margin-right:5px;
+}
 </style>
 </head>
+
 <body>
-    <h2>TTM Tracker</h2>
-    
-    <input id="name" placeholder="Name *" required>
-    <input id="address" placeholder="Address *" required>
-    <input id="dateSent" type="date">
-    
-    <button onclick="addEntry()" class="green">Save Entry</button>
-    
-    <hr>
-    
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Address</th>
-                <th>Date Sent</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="table"></tbody>
-    </table>
+
+<h2>TTM Tracker</h2>
+
+<input id="name" placeholder="Name *">
+<input id="address" placeholder="Address *">
+<input id="dateSent" type="date">
+
+<button class="green" onclick="addEntry()">Save Entry</button>
+
+<hr>
+
+<table>
+<thead>
+<tr>
+  <th>Name</th>
+  <th>Address</th>
+  <th>Sent</th>
+  <th>Received</th>
+  <th>Status</th>
+  <th>Actions</th>
+</tr>
+</thead>
+
+<tbody id="table"></tbody>
+</table>
 
 <script>
-// =========================
-// SUPABASE INIT
-// =========================
-let sb;
+const sb = window.supabase.createClient(
+  "https://aeezsewfoozizduzuidv.supabase.co",
+  "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
+);
+
 let data = [];
 
-async function initSupabase() {
-    if (typeof window.supabase === 'undefined') {
-        console.error("Supabase library failed to load");
-        alert("Failed to load Supabase. Please refresh the page.");
-        return;
-    }
-
-    sb = window.supabase.createClient(
-        "https://aeezsewfoozizduzuidv.supabase.co",
-        "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
-    );
-
-    await loadData();
-}
-
-// =========================
-// LOAD DATA
-// =========================
+/* =========================
+   LOAD DATA
+========================= */
 async function loadData() {
-    if (!sb) return;
+  const { data: rows, error } = await sb
+    .from("Tracking")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-    const { data: rows, error } = await sb
-        .from("Tracking")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-    if (error) {
-        console.error("Error loading data:", error);
-        alert("Failed to load data: " + error.message);
-    } else {
-        data = rows || [];
-        render();
-    }
+  if (!error) {
+    data = rows || [];
+    render();
+  } else {
+    console.error(error);
+  }
 }
 
-// =========================
-// ADD ENTRY
-// =========================
+/* =========================
+   ADD ENTRY
+========================= */
 async function addEntry() {
-    if (!sb) {
-        alert("Database not connected. Please refresh.");
-        return;
-    }
+  const name = document.getElementById("name").value.trim();
+  const address = document.getElementById("address").value.trim();
+  const date_sent =
+    document.getElementById("dateSent").value ||
+    new Date().toISOString().split("T")[0];
 
-    const name = document.getElementById("name").value.trim();
-    const address = document.getElementById("address").value.trim();
-    const date_sent = document.getElementById("dateSent").value || 
-                      new Date().toISOString().split("T")[0];
+  if (!name || !address) {
+    alert("Name and Address required");
+    return;
+  }
 
-    if (!name || !address) {
-        alert("Name and Address are required!");
-        return;
-    }
+  const { error } = await sb.from("Tracking").insert([{
+    name,
+    address,
+    date_sent,
+    date_received: null,
+    returned: false,
+    rts: null,
+    received_auto: null
+  }]);
 
-    const { error } = await sb.from("Tracking").insert([{
-        name,
-        address,
-        date_sent,
-        returned: false
-    }]);
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
+  }
 
-    if (error) {
-        console.error("Insert error:", error);
-        alert("Failed to save entry: " + error.message);
-    } else {
-        // Clear form
-        document.getElementById("name").value = "";
-        document.getElementById("address").value = "";
-        document.getElementById("dateSent").value = "";
-        
-        await loadData();   // Refresh table
-    }
+  document.getElementById("name").value = "";
+  document.getElementById("address").value = "";
+  document.getElementById("dateSent").value = "";
+
+  loadData();
 }
 
-// =========================
-// TOGGLE RETURNED
-// =========================
-async function toggle(id) {
-    if (!sb) return;
+/* =========================
+   TOGGLE RETURNED
+========================= */
+async function toggle(item) {
+  await sb
+    .from("Tracking")
+    .update({ returned: !item.returned })
+    .eq("id", item.id);
 
-    const item = data.find(d => d.id === id);
-    if (!item) return;
-
-    const { error } = await sb
-        .from("Tracking")
-        .update({ returned: !item.returned })
-        .eq("id", id);
-
-    if (error) {
-        console.error("Toggle error:", error);
-        alert("Failed to update status");
-    } else {
-        await loadData();
-    }
+  loadData();
 }
 
-// =========================
-// DELETE ENTRY
-// =========================
+/* =========================
+   DELETE
+========================= */
 async function remove(id) {
-    if (!confirm("Are you sure you want to delete this entry?")) return;
+  await sb
+    .from("Tracking")
+    .delete()
+    .eq("id", id);
 
-    if (!sb) return;
-
-    const { error } = await sb
-        .from("Tracking")
-        .delete()
-        .eq("id", id);
-
-    if (error) {
-        console.error("Delete error:", error);
-        alert("Failed to delete entry");
-    } else {
-        await loadData();
-    }
+  loadData();
 }
 
-// =========================
-// RENDER TABLE
-// =========================
+/* =========================
+   RENDER
+========================= */
 function render() {
-    const tbody = document.getElementById("table");
-    tbody.innerHTML = "";
+  const tbody = document.getElementById("table");
+  tbody.innerHTML = "";
 
-    if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No entries yet.</td></tr>`;
-        return;
-    }
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No entries</td></tr>`;
+    return;
+  }
 
-    data.forEach(item => {
-        const row = document.createElement("tr");
-        row.className = item.returned ? "returned" : "pending";
+  data.forEach(item => {
+    const tr = document.createElement("tr");
+    tr.className = item.returned ? "returned" : "pending";
 
-        row.innerHTML = `
-            <td>${item.name || ''}</td>
-            <td>${item.address || ''}</td>
-            <td>${item.date_sent || ''}</td>
-            <td><strong>${item.returned ? "✅ Returned" : "⏳ Pending"}</strong></td>
-            <td class="actions">
-                <button class="green" onclick="toggle('${item.id}')">
-                    ${item.returned ? "Mark Pending" : "Mark Returned"}
-                </button>
-                <button class="red" onclick="remove('${item.id}')">Delete</button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
+    tr.innerHTML = `
+      <td>${item.name || ""}</td>
+      <td>${item.address || ""}</td>
+      <td>${item.date_sent || ""}</td>
+      <td>${item.date_received || "-"}</td>
+      <td>${item.returned ? "Returned" : "Pending"}</td>
+      <td class="actions">
+        <button class="green" onclick='toggle(${JSON.stringify(item)})'>
+          Toggle
+        </button>
+        <button class="red" onclick="remove('${item.id}')">
+          Delete
+        </button>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  });
 }
 
-// Initialize the app
-initSupabase();
+loadData();
 </script>
+
 </body>
 </html>
