@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Analytics System</title>
+<title>TTM Tracker App</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -22,7 +22,7 @@ h2 { margin: 0 0 10px 0; }
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
 .card {
@@ -50,14 +50,23 @@ button {
 .red { background: #dc3545; color: white; }
 .orange { background: #fd7e14; color: white; }
 
+.search {
+  margin: 10px 0;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 10px;
+  background: white;
 }
 
 th, td {
-  border: 1px solid #ccc;
+  border: 1px solid #ddd;
   padding: 8px;
   font-size: 14px;
 }
@@ -74,19 +83,34 @@ th {
 canvas {
   background: white;
   border-radius: 8px;
-  margin-top: 15px;
+  margin-top: 10px;
   padding: 10px;
+  max-height: 260px;
 }
 
-.section {
-  margin-top: 20px;
+/* PROFILE MODAL */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+  background: white;
+  margin: 10% auto;
+  padding: 20px;
+  width: 90%;
+  max-width: 500px;
+  border-radius: 8px;
 }
 </style>
 </head>
 
 <body>
 
-<h2>TTM Analytics Dashboard</h2>
+<h2>TTM Tracker App</h2>
 
 <!-- DASHBOARD -->
 <div class="dashboard">
@@ -102,41 +126,47 @@ canvas {
 <input id="dateSent" type="date">
 <button class="green" onclick="addEntry()">Save Entry</button>
 
-<!-- CHARTS -->
-<canvas id="statusChart" height="120"></canvas>
-<canvas id="trendChart" height="120"></canvas>
+<!-- SEARCH -->
+<input class="search" id="search" placeholder="Search name or address..." oninput="render()">
 
-<!-- LEADERBOARDS -->
-<div class="section">
-  <h3>⚡ Fast Response Leaderboard (≤ 30 days)</h3>
-  <table>
-    <thead><tr><th>Name</th><th>Days</th></tr></thead>
-    <tbody id="fastBoard"></tbody>
-  </table>
-</div>
-
-<div class="section">
-  <h3>🐢 Slow Response Leaderboard (≥ 90 days)</h3>
-  <table>
-    <thead><tr><th>Name</th><th>Days</th></tr></thead>
-    <tbody id="slowBoard"></tbody>
-  </table>
-</div>
-
-<!-- MAIN TABLE -->
+<!-- TABLE -->
 <table>
 <thead>
 <tr>
   <th>Name</th>
   <th>Address</th>
   <th>Sent</th>
-  <th>Received</th>
   <th>Status</th>
   <th>Actions</th>
 </tr>
 </thead>
 <tbody id="table"></tbody>
 </table>
+
+<!-- CHARTS (BOTTOM) -->
+<div class="section">
+  <h3>📊 Analytics</h3>
+  <canvas id="statusChart" height="120"></canvas>
+  <canvas id="trendChart" height="120"></canvas>
+</div>
+
+<!-- LEADERBOARDS -->
+<div class="section">
+  <h3>⚡ Fast (≤30 days)</h3>
+  <table><tbody id="fastBoard"></tbody></table>
+
+  <h3>🐢 Slow (≥90 days)</h3>
+  <table><tbody id="slowBoard"></tbody></table>
+</div>
+
+<!-- PROFILE MODAL -->
+<div id="modal" class="modal" onclick="closeModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3 id="pName"></h3>
+    <div id="pHistory"></div>
+    <button class="red" onclick="closeModal()">Close</button>
+  </div>
+</div>
 
 <script>
 const sb = window.supabase.createClient(
@@ -149,13 +179,8 @@ let statusChart, trendChart;
 
 /* LOAD */
 async function loadData() {
-  const { data: rows } = await sb
-    .from("Tracking")
-    .select("*")
-    .order("created_at", { ascending: false });
-
+  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
-
   render();
   updateDashboard();
   updateCharts();
@@ -164,175 +189,156 @@ async function loadData() {
 
 /* ADD (AUTO CLEAR FIXED) */
 async function addEntry() {
-  const nameEl = document.getElementById("name");
-  const addressEl = document.getElementById("address");
-  const dateEl = document.getElementById("dateSent");
+  const n = document.getElementById("name");
+  const a = document.getElementById("address");
+  const d = document.getElementById("dateSent");
 
-  const name = nameEl.value.trim();
-  const address = addressEl.value.trim();
-  const date_sent = dateEl.value || new Date().toISOString().split("T")[0];
-
-  if (!name || !address) return alert("Name and Address required");
+  if (!n.value || !a.value) return alert("Required");
 
   const { error } = await sb.from("Tracking").insert([{
-    name,
-    address,
-    date_sent,
+    name: n.value,
+    address: a.value,
+    date_sent: d.value || new Date().toISOString().split("T")[0],
     returned: false,
     signature_status: "pending"
   }]);
 
   if (error) return alert(error.message);
 
-  // CLEAR ONLY AFTER SUCCESS
-  nameEl.value = "";
-  addressEl.value = "";
-  dateEl.value = "";
+  n.value = "";
+  a.value = "";
+  d.value = "";
 
   loadData();
 }
 
-/* UPDATE */
-async function updateField(id, field, value) {
-  await sb.from("Tracking").update({ [field]: value }).eq("id", id);
-}
-
-/* STATUS */
-async function setStatus(id, status) {
-  await sb.from("Tracking").update({
-    signature_status: status,
-    returned: true
-  }).eq("id", id);
-
-  loadData();
-}
-
-/* DELETE */
-async function remove(id) {
-  if (!confirm("Delete entry?")) return;
-  await sb.from("Tracking").delete().eq("id", id);
-  loadData();
+/* SEARCH FILTER */
+function filtered() {
+  const q = document.getElementById("search").value.toLowerCase();
+  return data.filter(d =>
+    (d.name || "").toLowerCase().includes(q) ||
+    (d.address || "").toLowerCase().includes(q)
+  );
 }
 
 /* DASHBOARD */
 function updateDashboard() {
-  const total = data.length;
-  const pending = data.filter(d => !d.returned).length;
-  const signed = data.filter(d => d.signature_status === "returned_signed").length;
-  const unsigned = data.filter(d => d.signature_status === "returned_unsigned").length;
-
-  document.getElementById("total").innerText = total;
-  document.getElementById("pending").innerText = pending;
-  document.getElementById("signed").innerText = signed;
-  document.getElementById("unsigned").innerText = unsigned;
+  document.getElementById("total").innerText = data.length;
+  document.getElementById("pending").innerText = data.filter(d => !d.returned).length;
+  document.getElementById("signed").innerText = data.filter(d => d.signature_status === "returned_signed").length;
+  document.getElementById("unsigned").innerText = data.filter(d => d.signature_status === "returned_unsigned").length;
 }
 
 /* CHARTS */
 function updateCharts() {
-  const signed = data.filter(d => d.signature_status === "returned_signed").length;
-  const unsigned = data.filter(d => d.signature_status === "returned_unsigned").length;
-  const pending = data.filter(d => !d.returned).length;
+  const s = data.filter(d => d.signature_status === "returned_signed").length;
+  const u = data.filter(d => d.signature_status === "returned_unsigned").length;
+  const p = data.filter(d => !d.returned).length;
 
   if (statusChart) statusChart.destroy();
   statusChart = new Chart(document.getElementById("statusChart"), {
     type: "pie",
     data: {
-      labels: ["Pending", "Signed", "Unsigned"],
-      datasets: [{
-        data: [pending, signed, unsigned],
-        backgroundColor: ["#ffc107", "#28a745", "#dc3545"]
-      }]
+      labels: ["Pending","Signed","Unsigned"],
+      datasets: [{ data:[p,s,u], backgroundColor:["#ffc107","#28a745","#dc3545"] }]
     }
   });
 
-  const months = {};
+  const m = {};
   data.forEach(d => {
     if (!d.date_sent) return;
-    const m = d.date_sent.slice(0,7);
-    months[m] = (months[m] || 0) + 1;
+    const k = d.date_sent.slice(0,7);
+    m[k] = (m[k]||0)+1;
   });
 
-  const labels = Object.keys(months).sort();
-  const values = labels.map(l => months[l]);
+  const labels = Object.keys(m).sort();
+  const values = labels.map(x => m[x]);
 
   if (trendChart) trendChart.destroy();
   trendChart = new Chart(document.getElementById("trendChart"), {
     type: "line",
     data: {
       labels,
-      datasets: [{
-        label: "Sent per Month",
-        data: values,
-        borderColor: "#007bff",
-        fill: false
-      }]
+      datasets: [{ label:"Sent", data:values, borderColor:"#007bff", fill:false }]
     }
   });
 }
 
 /* LEADERBOARDS */
 function updateLeaderboards() {
-  const fast = [];
-  const slow = [];
+  const fast=[], slow=[];
 
-  data.forEach(d => {
-    if (!d.returned || !d.date_sent || !d.date_received) return;
+  data.forEach(d=>{
+    if(!d.date_sent||!d.date_received) return;
+    const days = (new Date(d.date_received)-new Date(d.date_sent))/86400000;
 
-    const days = Math.floor(
-      (new Date(d.date_received) - new Date(d.date_sent)) /
-      (1000 * 60 * 60 * 24)
-    );
-
-    if (days <= 30) fast.push({ name: d.name, days });
-    if (days >= 90) slow.push({ name: d.name, days });
+    if(days<=30) fast.push({n:d.name,d:Math.floor(days)});
+    if(days>=90) slow.push({n:d.name,d:Math.floor(days)});
   });
 
-  fast.sort((a,b) => a.days - b.days);
-  slow.sort((a,b) => b.days - a.days);
-
   document.getElementById("fastBoard").innerHTML =
-    fast.map(x => `<tr><td>${x.name}</td><td>${x.days}</td></tr>`).join("");
+    fast.map(x=>`<tr><td>${x.n}</td><td>${x.d}</td></tr>`).join("");
 
   document.getElementById("slowBoard").innerHTML =
-    slow.map(x => `<tr><td>${x.name}</td><td>${x.days}</td></tr>`).join("");
+    slow.map(x=>`<tr><td>${x.n}</td><td>${x.d}</td></tr>`).join("");
 }
 
 /* TABLE */
 function render() {
-  const tbody = document.getElementById("table");
-  tbody.innerHTML = "";
+  const t = document.getElementById("table");
+  t.innerHTML = "";
 
-  data.forEach(item => {
-    const status = item.signature_status || "pending";
+  filtered().forEach(d=>{
+    const st = d.signature_status||"pending";
 
-    const tr = document.createElement("tr");
+    const tr=document.createElement("tr");
     tr.className =
-      status === "returned_signed" ? "signed" :
-      status === "returned_unsigned" ? "unsigned" :
-      "pending";
+      st==="returned_signed"?"signed":
+      st==="returned_unsigned"?"unsigned":"pending";
 
-    tr.innerHTML = `
-      <td>${item.name || ""}</td>
-      <td>${item.address || ""}</td>
-      <td>${item.date_sent || ""}</td>
+    tr.innerHTML=`
+      <td onclick="openProfile('${d.name}')">${d.name||""}</td>
+      <td>${d.address||""}</td>
+      <td>${d.date_sent||""}</td>
+      <td>${st}</td>
       <td>
-        <input type="date" value="${item.date_received || ""}"
-        onchange="updateField('${item.id}','date_received',this.value)">
-      </td>
-      <td>${status}</td>
-      <td>
-        <button class="green" onclick="setStatus('${item.id}','returned_signed')">Signed</button>
-        <button class="orange" onclick="setStatus('${item.id}','returned_unsigned')">Not Signed</button>
-        <button class="red" onclick="remove('${item.id}')">Delete</button>
+        <button class="green" onclick="setStatus('${d.id}','returned_signed')">Signed</button>
+        <button class="orange" onclick="setStatus('${d.id}','returned_unsigned')">Not Signed</button>
+        <button class="red" onclick="remove('${d.id}')">Del</button>
       </td>
     `;
-
-    tbody.appendChild(tr);
+    t.appendChild(tr);
   });
 }
 
+/* STATUS */
+async function setStatus(id,s){
+  await sb.from("Tracking").update({signature_status:s,returned:true}).eq("id",id);
+  loadData();
+}
+
+/* DELETE */
+async function remove(id){
+  if(!confirm("Delete?"))return;
+  await sb.from("Tracking").delete().eq("id",id);
+  loadData();
+}
+
+/* PROFILE */
+function openProfile(name){
+  const p=data.filter(d=>d.name===name);
+  document.getElementById("pName").innerText=name;
+  document.getElementById("pHistory").innerHTML=
+    p.map(x=>`<div>${x.date_sent} → ${x.signature_status}</div>`).join("");
+  document.getElementById("modal").style.display="block";
+}
+
+function closeModal(){
+  document.getElementById("modal").style.display="none";
+}
+
 loadData();
-setInterval(loadData, 30000);
+setInterval(loadData,30000);
 </script>
 
 </body>
