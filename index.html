@@ -32,18 +32,18 @@ button {
 
 .green { background: #28a745; color: white; }
 .red { background: #dc3545; color: white; }
+.orange { background: #fd7e14; color: white; }
 
 table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 20px;
-  font-size: 14px;
 }
 
 th, td {
   border: 1px solid #ccc;
   padding: 8px;
-  text-align: left;
+  font-size: 14px;
 }
 
 th {
@@ -51,8 +51,10 @@ th {
   color: white;
 }
 
-.pending { background: #ffe5e5; }
-.returned { background: #e6ffe6; }
+/* STATUS COLORS */
+.pending { background: #fff3cd; }
+.signed { background: #d4edda; }
+.unsigned { background: #f8d7da; }
 
 td[contenteditable="true"] {
   background: #fffbe6;
@@ -79,7 +81,7 @@ td[contenteditable="true"] {
   <th>Received</th>
   <th>RTS</th>
   <th>Auto</th>
-  <th>Status</th>
+  <th>Signature</th>
   <th>Actions</th>
 </tr>
 </thead>
@@ -95,9 +97,7 @@ const sb = window.supabase.createClient(
 
 let data = [];
 
-/* =========================
-   LOAD
-========================= */
+/* LOAD */
 async function loadData() {
   const { data: rows, error } = await sb
     .from("Tracking")
@@ -112,9 +112,7 @@ async function loadData() {
   }
 }
 
-/* =========================
-   ADD
-========================= */
+/* ADD */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const address = document.getElementById("address").value.trim();
@@ -134,7 +132,8 @@ async function addEntry() {
     date_received: null,
     returned: false,
     rts: null,
-    received_auto: null
+    received_auto: null,
+    signature_status: "pending"
   }]);
 
   document.getElementById("name").value = "";
@@ -144,48 +143,38 @@ async function addEntry() {
   loadData();
 }
 
-/* =========================
-   UPDATE
-========================= */
+/* UPDATE FIELD */
 async function updateField(id, field, value) {
-  await sb
-    .from("Tracking")
-    .update({ [field]: value })
-    .eq("id", id);
+  await sb.from("Tracking").update({ [field]: value }).eq("id", id);
 }
 
-/* =========================
-   TOGGLE RETURN
-========================= */
-async function toggleReturned(item) {
-  await updateField(item.id, "returned", !item.returned);
+/* SIGNATURE UPDATE */
+async function setSignature(id, value) {
+  await updateField(id, "signature_status", value);
+  await updateField(id, "returned", true);
   loadData();
 }
 
-/* =========================
-   DELETE
-========================= */
+/* DELETE */
 async function remove(id) {
   if (!confirm("Delete this entry?")) return;
-
-  await sb
-    .from("Tracking")
-    .delete()
-    .eq("id", id);
-
+  await sb.from("Tracking").delete().eq("id", id);
   loadData();
 }
 
-/* =========================
-   RENDER
-========================= */
+/* RENDER */
 function render() {
   const tbody = document.getElementById("table");
   tbody.innerHTML = "";
 
   data.forEach(item => {
+    const status = item.signature_status || "pending";
+
     const tr = document.createElement("tr");
-    tr.className = item.returned ? "returned" : "pending";
+    tr.className =
+      status === "returned_signed" ? "signed" :
+      status === "returned_unsigned" ? "unsigned" :
+      "pending";
 
     tr.innerHTML = `
       <td contenteditable="true" onblur="updateField('${item.id}','name',this.innerText)">
@@ -206,30 +195,34 @@ function render() {
         onchange="updateField('${item.id}','date_received',this.value)">
       </td>
 
-      <td>
-        <select onchange="updateField('${item.id}','rts',this.value)">
-          <option value="">-</option>
-          <option value="Yes" ${item.rts === "Yes" ? "selected" : ""}>Yes</option>
-          <option value="No" ${item.rts === "No" ? "selected" : ""}>No</option>
-          <option value="Partial" ${item.rts === "Partial" ? "selected" : ""}>Partial</option>
-        </select>
+      <td contenteditable="true" onblur="updateField('${item.id}','rts',this.innerText)">
+        ${item.rts || ""}
       </td>
 
       <td>
         <select onchange="updateField('${item.id}','received_auto',this.value)">
           <option value="">-</option>
-          <option value="Yes" ${item.received_auto === "Yes" ? "selected" : ""}>Yes</option>
-          <option value="No" ${item.received_auto === "No" ? "selected" : ""}>No</option>
+          <option value="Yes" ${item.received_auto==="Yes"?"selected":""}>Yes</option>
+          <option value="No" ${item.received_auto==="No"?"selected":""}>No</option>
         </select>
       </td>
 
       <td>
-        ${item.returned ? "✅ Returned" : "⏳ Pending"}
+        ${status}
       </td>
 
       <td>
-        <button class="green" onclick='toggleReturned(${JSON.stringify(item)})'>Toggle</button>
-        <button class="red" onclick="remove('${item.id}')">Delete</button>
+        <button class="green" onclick="setSignature('${item.id}','returned_signed')">
+          Signed
+        </button>
+
+        <button class="orange" onclick="setSignature('${item.id}','returned_unsigned')">
+          Not Signed
+        </button>
+
+        <button class="red" onclick="remove('${item.id}')">
+          Delete
+        </button>
       </td>
     `;
 
