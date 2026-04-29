@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Dashboard</title>
+<title>TTM Analytics Dashboard</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
@@ -32,31 +33,10 @@ h2 { margin: 0 0 10px 0; }
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-.card h3 {
-  margin: 5px 0;
-  font-size: 18px;
-}
-
-.bar {
-  display: flex;
-  height: 12px;
-  border-radius: 6px;
-  overflow: hidden;
-  margin: 10px 0;
-}
-
-.bar div {
-  height: 100%;
-}
-
-.pendingBar { background: #ffc107; }
-.signedBar { background: #28a745; }
-.unsignedBar { background: #dc3545; }
-
-input, button, select {
+input, button {
+  width: 100%;
   padding: 10px;
   margin-top: 6px;
-  width: 100%;
   box-sizing: border-box;
 }
 
@@ -90,42 +70,26 @@ th {
 .pending { background: #fff3cd; }
 .signed { background: #d4edda; }
 .unsigned { background: #f8d7da; }
-.overdue { border-left: 5px solid red; }
 
-td[contenteditable="true"] {
-  background: #fffbe6;
+canvas {
+  background: white;
+  border-radius: 8px;
+  margin-top: 15px;
+  padding: 10px;
 }
 </style>
 </head>
 
 <body>
 
-<h2>TTM Dashboard</h2>
+<h2>TTM Analytics Dashboard</h2>
 
 <!-- DASHBOARD -->
 <div class="dashboard">
-  <div class="card">
-    <h3 id="total">0</h3>
-    <small>Total</small>
-  </div>
-  <div class="card">
-    <h3 id="pending">0</h3>
-    <small>Pending</small>
-  </div>
-  <div class="card">
-    <h3 id="signed">0</h3>
-    <small>Signed</small>
-  </div>
-  <div class="card">
-    <h3 id="unsigned">0</h3>
-    <small>Unsigned</small>
-  </div>
-</div>
-
-<div class="bar">
-  <div id="bPending" class="pendingBar"></div>
-  <div id="bSigned" class="signedBar"></div>
-  <div id="bUnsigned" class="unsignedBar"></div>
+  <div class="card"><h3 id="total">0</h3><small>Total</small></div>
+  <div class="card"><h3 id="pending">0</h3><small>Pending</small></div>
+  <div class="card"><h3 id="signed">0</h3><small>Signed</small></div>
+  <div class="card"><h3 id="unsigned">0</h3><small>Unsigned</small></div>
 </div>
 
 <!-- INPUT -->
@@ -133,6 +97,10 @@ td[contenteditable="true"] {
 <input id="address" placeholder="Address *">
 <input id="dateSent" type="date">
 <button class="green" onclick="addEntry()">Save Entry</button>
+
+<!-- CHARTS -->
+<canvas id="statusChart" height="120"></canvas>
+<canvas id="trendChart" height="120"></canvas>
 
 <table>
 <thead>
@@ -157,6 +125,8 @@ const sb = window.supabase.createClient(
 
 let data = [];
 
+let statusChart, trendChart;
+
 /* LOAD */
 async function loadData() {
   const { data: rows } = await sb
@@ -167,23 +137,38 @@ async function loadData() {
   data = rows || [];
   render();
   updateDashboard();
+  updateCharts();
 }
 
-/* ADD */
+/* ADD (FIXED CLEAR LOGIC) */
 async function addEntry() {
-  const name = document.getElementById("name").value.trim();
-  const address = document.getElementById("address").value.trim();
-  const date_sent = document.getElementById("dateSent").value || new Date().toISOString().split("T")[0];
+  const nameEl = document.getElementById("name");
+  const addressEl = document.getElementById("address");
+  const dateEl = document.getElementById("dateSent");
 
-  if (!name || !address) return alert("Required");
+  const name = nameEl.value.trim();
+  const address = addressEl.value.trim();
+  const date_sent = dateEl.value || new Date().toISOString().split("T")[0];
 
-  await sb.from("Tracking").insert([{
+  if (!name || !address) return alert("Name and Address required");
+
+  const { error } = await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
     returned: false,
     signature_status: "pending"
   }]);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  // ✅ CLEAR ONLY AFTER SUCCESS
+  nameEl.value = "";
+  addressEl.value = "";
+  dateEl.value = "";
 
   loadData();
 }
@@ -195,8 +180,11 @@ async function updateField(id, field, value) {
 
 /* STATUS */
 async function setStatus(id, status) {
-  await updateField(id, "signature_status", status);
-  await updateField(id, "returned", true);
+  await sb.from("Tracking").update({
+    signature_status: status,
+    returned: true
+  }).eq("id", id);
+
   loadData();
 }
 
@@ -218,22 +206,60 @@ function updateDashboard() {
   document.getElementById("pending").innerText = pending;
   document.getElementById("signed").innerText = signed;
   document.getElementById("unsigned").innerText = unsigned;
-
-  const t = total || 1;
-  document.getElementById("bPending").style.width = (pending/t*100)+"%";
-  document.getElementById("bSigned").style.width = (signed/t*100)+"%";
-  document.getElementById("bUnsigned").style.width = (unsigned/t*100)+"%";
 }
 
-/* RENDER */
+/* CHARTS */
+function updateCharts() {
+  const signed = data.filter(d => d.signature_status === "returned_signed").length;
+  const unsigned = data.filter(d => d.signature_status === "returned_unsigned").length;
+  const pending = data.filter(d => !d.returned).length;
+
+  // PIE CHART
+  if (statusChart) statusChart.destroy();
+  statusChart = new Chart(document.getElementById("statusChart"), {
+    type: "pie",
+    data: {
+      labels: ["Pending", "Signed", "Unsigned"],
+      datasets: [{
+        data: [pending, signed, unsigned],
+        backgroundColor: ["#ffc107", "#28a745", "#dc3545"]
+      }]
+    }
+  });
+
+  // MONTHLY TREND
+  const months = {};
+  data.forEach(d => {
+    if (!d.date_sent) return;
+    const m = d.date_sent.slice(0,7);
+    months[m] = (months[m] || 0) + 1;
+  });
+
+  const labels = Object.keys(months).sort();
+  const values = labels.map(l => months[l]);
+
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById("trendChart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Sent per Month",
+        data: values,
+        borderColor: "#007bff",
+        fill: false
+      }]
+    }
+  });
+}
+
+/* RENDER TABLE */
 function render() {
   const tbody = document.getElementById("table");
   tbody.innerHTML = "";
 
   data.forEach(item => {
     const status = item.signature_status || "pending";
-    const isOverdue = !item.returned && item.date_sent &&
-      (new Date() - new Date(item.date_sent)) > 30*24*60*60*1000;
 
     const tr = document.createElement("tr");
     tr.className =
@@ -241,26 +267,15 @@ function render() {
       status === "returned_unsigned" ? "unsigned" :
       "pending";
 
-    if (isOverdue) tr.classList.add("overdue");
-
     tr.innerHTML = `
-      <td contenteditable="true" onblur="updateField('${item.id}','name',this.innerText)">
-        ${item.name || ""}
-      </td>
-
-      <td contenteditable="true" onblur="updateField('${item.id}','address',this.innerText)">
-        ${item.address || ""}
-      </td>
-
+      <td>${item.name || ""}</td>
+      <td>${item.address || ""}</td>
       <td>${item.date_sent || ""}</td>
-
       <td>
         <input type="date" value="${item.date_received || ""}"
         onchange="updateField('${item.id}','date_received',this.value)">
       </td>
-
       <td>${status}</td>
-
       <td>
         <button class="green" onclick="setStatus('${item.id}','returned_signed')">Signed</button>
         <button class="orange" onclick="setStatus('${item.id}','returned_unsigned')">Not Signed</button>
@@ -273,7 +288,6 @@ function render() {
 }
 
 loadData();
-setInterval(loadData, 30000);
 </script>
 
 </body>
