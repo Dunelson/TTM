@@ -3,19 +3,55 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Tracker Pro</title>
+<title>TTM Dashboard</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 body {
   font-family: Arial;
-  background: #f4f6f8;
   margin: 0;
   padding: 15px;
+  background: #f4f6f8;
 }
 
-h2 { margin-top: 0; }
+h2 { margin: 0 0 10px 0; }
+
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.card {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.card h3 {
+  margin: 5px 0;
+  font-size: 18px;
+}
+
+.bar {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.bar div {
+  height: 100%;
+}
+
+.pendingBar { background: #ffc107; }
+.signedBar { background: #28a745; }
+.unsignedBar { background: #dc3545; }
 
 input, button, select {
   padding: 10px;
@@ -37,7 +73,7 @@ button {
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 20px;
+  margin-top: 15px;
 }
 
 th, td {
@@ -51,10 +87,10 @@ th {
   color: white;
 }
 
-/* STATUS COLORS */
 .pending { background: #fff3cd; }
 .signed { background: #d4edda; }
 .unsigned { background: #f8d7da; }
+.overdue { border-left: 5px solid red; }
 
 td[contenteditable="true"] {
   background: #fffbe6;
@@ -64,12 +100,38 @@ td[contenteditable="true"] {
 
 <body>
 
-<h2>TTM Tracker Pro</h2>
+<h2>TTM Dashboard</h2>
 
+<!-- DASHBOARD -->
+<div class="dashboard">
+  <div class="card">
+    <h3 id="total">0</h3>
+    <small>Total</small>
+  </div>
+  <div class="card">
+    <h3 id="pending">0</h3>
+    <small>Pending</small>
+  </div>
+  <div class="card">
+    <h3 id="signed">0</h3>
+    <small>Signed</small>
+  </div>
+  <div class="card">
+    <h3 id="unsigned">0</h3>
+    <small>Unsigned</small>
+  </div>
+</div>
+
+<div class="bar">
+  <div id="bPending" class="pendingBar"></div>
+  <div id="bSigned" class="signedBar"></div>
+  <div id="bUnsigned" class="unsignedBar"></div>
+</div>
+
+<!-- INPUT -->
 <input id="name" placeholder="Name *">
 <input id="address" placeholder="Address *">
 <input id="dateSent" type="date">
-
 <button class="green" onclick="addEntry()">Save Entry</button>
 
 <table>
@@ -79,9 +141,7 @@ td[contenteditable="true"] {
   <th>Address</th>
   <th>Sent</th>
   <th>Received</th>
-  <th>RTS</th>
-  <th>Auto</th>
-  <th>Signature</th>
+  <th>Status</th>
   <th>Actions</th>
 </tr>
 </thead>
@@ -99,67 +159,70 @@ let data = [];
 
 /* LOAD */
 async function loadData() {
-  const { data: rows, error } = await sb
+  const { data: rows } = await sb
     .from("Tracking")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (!error) {
-    data = rows || [];
-    render();
-  } else {
-    console.error(error);
-  }
+  data = rows || [];
+  render();
+  updateDashboard();
 }
 
 /* ADD */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const address = document.getElementById("address").value.trim();
-  const date_sent =
-    document.getElementById("dateSent").value ||
-    new Date().toISOString().split("T")[0];
+  const date_sent = document.getElementById("dateSent").value || new Date().toISOString().split("T")[0];
 
-  if (!name || !address) {
-    alert("Name and Address required");
-    return;
-  }
+  if (!name || !address) return alert("Required");
 
   await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
-    date_received: null,
     returned: false,
-    rts: null,
-    received_auto: null,
     signature_status: "pending"
   }]);
-
-  document.getElementById("name").value = "";
-  document.getElementById("address").value = "";
-  document.getElementById("dateSent").value = "";
 
   loadData();
 }
 
-/* UPDATE FIELD */
+/* UPDATE */
 async function updateField(id, field, value) {
   await sb.from("Tracking").update({ [field]: value }).eq("id", id);
 }
 
-/* SIGNATURE UPDATE */
-async function setSignature(id, value) {
-  await updateField(id, "signature_status", value);
+/* STATUS */
+async function setStatus(id, status) {
+  await updateField(id, "signature_status", status);
   await updateField(id, "returned", true);
   loadData();
 }
 
 /* DELETE */
 async function remove(id) {
-  if (!confirm("Delete this entry?")) return;
+  if (!confirm("Delete?")) return;
   await sb.from("Tracking").delete().eq("id", id);
   loadData();
+}
+
+/* DASHBOARD */
+function updateDashboard() {
+  const total = data.length;
+  const pending = data.filter(d => !d.returned).length;
+  const signed = data.filter(d => d.signature_status === "returned_signed").length;
+  const unsigned = data.filter(d => d.signature_status === "returned_unsigned").length;
+
+  document.getElementById("total").innerText = total;
+  document.getElementById("pending").innerText = pending;
+  document.getElementById("signed").innerText = signed;
+  document.getElementById("unsigned").innerText = unsigned;
+
+  const t = total || 1;
+  document.getElementById("bPending").style.width = (pending/t*100)+"%";
+  document.getElementById("bSigned").style.width = (signed/t*100)+"%";
+  document.getElementById("bUnsigned").style.width = (unsigned/t*100)+"%";
 }
 
 /* RENDER */
@@ -169,12 +232,16 @@ function render() {
 
   data.forEach(item => {
     const status = item.signature_status || "pending";
+    const isOverdue = !item.returned && item.date_sent &&
+      (new Date() - new Date(item.date_sent)) > 30*24*60*60*1000;
 
     const tr = document.createElement("tr");
     tr.className =
       status === "returned_signed" ? "signed" :
       status === "returned_unsigned" ? "unsigned" :
       "pending";
+
+    if (isOverdue) tr.classList.add("overdue");
 
     tr.innerHTML = `
       <td contenteditable="true" onblur="updateField('${item.id}','name',this.innerText)">
@@ -185,44 +252,19 @@ function render() {
         ${item.address || ""}
       </td>
 
-      <td>
-        <input type="date" value="${item.date_sent || ""}"
-        onchange="updateField('${item.id}','date_sent',this.value)">
-      </td>
+      <td>${item.date_sent || ""}</td>
 
       <td>
         <input type="date" value="${item.date_received || ""}"
         onchange="updateField('${item.id}','date_received',this.value)">
       </td>
 
-      <td contenteditable="true" onblur="updateField('${item.id}','rts',this.innerText)">
-        ${item.rts || ""}
-      </td>
+      <td>${status}</td>
 
       <td>
-        <select onchange="updateField('${item.id}','received_auto',this.value)">
-          <option value="">-</option>
-          <option value="Yes" ${item.received_auto==="Yes"?"selected":""}>Yes</option>
-          <option value="No" ${item.received_auto==="No"?"selected":""}>No</option>
-        </select>
-      </td>
-
-      <td>
-        ${status}
-      </td>
-
-      <td>
-        <button class="green" onclick="setSignature('${item.id}','returned_signed')">
-          Signed
-        </button>
-
-        <button class="orange" onclick="setSignature('${item.id}','returned_unsigned')">
-          Not Signed
-        </button>
-
-        <button class="red" onclick="remove('${item.id}')">
-          Delete
-        </button>
+        <button class="green" onclick="setStatus('${item.id}','returned_signed')">Signed</button>
+        <button class="orange" onclick="setStatus('${item.id}','returned_unsigned')">Not Signed</button>
+        <button class="red" onclick="remove('${item.id}')">Delete</button>
       </td>
     `;
 
@@ -231,6 +273,7 @@ function render() {
 }
 
 loadData();
+setInterval(loadData, 30000);
 </script>
 
 </body>
