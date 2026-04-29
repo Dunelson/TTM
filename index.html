@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Analytics Dashboard</title>
+<title>TTM Analytics System</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -53,7 +53,7 @@ button {
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 15px;
+  margin-top: 10px;
 }
 
 th, td {
@@ -76,6 +76,10 @@ canvas {
   border-radius: 8px;
   margin-top: 15px;
   padding: 10px;
+}
+
+.section {
+  margin-top: 20px;
 }
 </style>
 </head>
@@ -102,6 +106,24 @@ canvas {
 <canvas id="statusChart" height="120"></canvas>
 <canvas id="trendChart" height="120"></canvas>
 
+<!-- LEADERBOARDS -->
+<div class="section">
+  <h3>⚡ Fast Response Leaderboard (≤ 30 days)</h3>
+  <table>
+    <thead><tr><th>Name</th><th>Days</th></tr></thead>
+    <tbody id="fastBoard"></tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h3>🐢 Slow Response Leaderboard (≥ 90 days)</h3>
+  <table>
+    <thead><tr><th>Name</th><th>Days</th></tr></thead>
+    <tbody id="slowBoard"></tbody>
+  </table>
+</div>
+
+<!-- MAIN TABLE -->
 <table>
 <thead>
 <tr>
@@ -113,7 +135,6 @@ canvas {
   <th>Actions</th>
 </tr>
 </thead>
-
 <tbody id="table"></tbody>
 </table>
 
@@ -124,7 +145,6 @@ const sb = window.supabase.createClient(
 );
 
 let data = [];
-
 let statusChart, trendChart;
 
 /* LOAD */
@@ -135,12 +155,14 @@ async function loadData() {
     .order("created_at", { ascending: false });
 
   data = rows || [];
+
   render();
   updateDashboard();
   updateCharts();
+  updateLeaderboards();
 }
 
-/* ADD (FIXED CLEAR LOGIC) */
+/* ADD (AUTO CLEAR FIXED) */
 async function addEntry() {
   const nameEl = document.getElementById("name");
   const addressEl = document.getElementById("address");
@@ -160,12 +182,9 @@ async function addEntry() {
     signature_status: "pending"
   }]);
 
-  if (error) {
-    alert(error.message);
-    return;
-  }
+  if (error) return alert(error.message);
 
-  // ✅ CLEAR ONLY AFTER SUCCESS
+  // CLEAR ONLY AFTER SUCCESS
   nameEl.value = "";
   addressEl.value = "";
   dateEl.value = "";
@@ -190,7 +209,7 @@ async function setStatus(id, status) {
 
 /* DELETE */
 async function remove(id) {
-  if (!confirm("Delete?")) return;
+  if (!confirm("Delete entry?")) return;
   await sb.from("Tracking").delete().eq("id", id);
   loadData();
 }
@@ -214,7 +233,6 @@ function updateCharts() {
   const unsigned = data.filter(d => d.signature_status === "returned_unsigned").length;
   const pending = data.filter(d => !d.returned).length;
 
-  // PIE CHART
   if (statusChart) statusChart.destroy();
   statusChart = new Chart(document.getElementById("statusChart"), {
     type: "pie",
@@ -227,7 +245,6 @@ function updateCharts() {
     }
   });
 
-  // MONTHLY TREND
   const months = {};
   data.forEach(d => {
     if (!d.date_sent) return;
@@ -253,7 +270,34 @@ function updateCharts() {
   });
 }
 
-/* RENDER TABLE */
+/* LEADERBOARDS */
+function updateLeaderboards() {
+  const fast = [];
+  const slow = [];
+
+  data.forEach(d => {
+    if (!d.returned || !d.date_sent || !d.date_received) return;
+
+    const days = Math.floor(
+      (new Date(d.date_received) - new Date(d.date_sent)) /
+      (1000 * 60 * 60 * 24)
+    );
+
+    if (days <= 30) fast.push({ name: d.name, days });
+    if (days >= 90) slow.push({ name: d.name, days });
+  });
+
+  fast.sort((a,b) => a.days - b.days);
+  slow.sort((a,b) => b.days - a.days);
+
+  document.getElementById("fastBoard").innerHTML =
+    fast.map(x => `<tr><td>${x.name}</td><td>${x.days}</td></tr>`).join("");
+
+  document.getElementById("slowBoard").innerHTML =
+    slow.map(x => `<tr><td>${x.name}</td><td>${x.days}</td></tr>`).join("");
+}
+
+/* TABLE */
 function render() {
   const tbody = document.getElementById("table");
   tbody.innerHTML = "";
@@ -288,6 +332,7 @@ function render() {
 }
 
 loadData();
+setInterval(loadData, 30000);
 </script>
 
 </body>
