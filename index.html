@@ -33,7 +33,7 @@ h2 { margin-bottom: 10px; }
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-input, select, button {
+input, button {
   width: 100%;
   padding: 10px;
   margin-top: 6px;
@@ -48,7 +48,6 @@ button {
 
 .green { background: #28a745; color: white; }
 .red { background: #dc3545; color: white; }
-.orange { background: #fd7e14; color: white; }
 
 .search {
   margin-top: 10px;
@@ -76,29 +75,14 @@ th {
 .signed { background: #d4edda; }
 .not-signed { background: #f8d7da; }
 
+/* FIXED PIE SIZE */
 canvas {
   background: white;
   border-radius: 8px;
   margin-top: 10px;
   padding: 10px;
-}
-
-/* modal */
-.modal {
-  display: none;
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5);
-}
-
-.modal-content {
-  background: white;
-  margin: 10% auto;
-  padding: 20px;
-  width: 90%;
-  max-width: 500px;
-  border-radius: 8px;
+  max-height: 220px;
+  max-width: 420px;
 }
 </style>
 </head>
@@ -115,27 +99,17 @@ canvas {
   <div class="card"><h3 id="notSigned">0</h3><small>Not Signed</small></div>
 </div>
 
-<!-- INPUT -->
+<!-- ENTRY -->
 <input id="name" placeholder="Name">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
-
-<select id="rts">
-  <option value="false">RTS: No</option>
-  <option value="true">RTS: Yes</option>
-</select>
-
-<select id="received_auto">
-  <option value="false">Auto: No</option>
-  <option value="true">Auto: Yes</option>
-</select>
 
 <button class="green" onclick="addEntry()">Save Entry</button>
 
 <!-- SEARCH -->
 <input class="search" id="search" placeholder="Search..." oninput="render()">
 
-<!-- PIE ONLY -->
+<!-- PIE -->
 <canvas id="statusChart" height="140"></canvas>
 
 <!-- TABLE -->
@@ -146,23 +120,12 @@ canvas {
   <th>Address</th>
   <th>Sent</th>
   <th>Received</th>
-  <th>RTS</th>
-  <th>Legitimacy</th>
   <th>Status</th>
   <th>Actions</th>
 </tr>
 </thead>
 <tbody id="table"></tbody>
 </table>
-
-<!-- PROFILE -->
-<div id="modal" class="modal" onclick="closeModal()">
-  <div class="modal-content" onclick="event.stopPropagation()">
-    <h3 id="pName"></h3>
-    <div id="pHistory"></div>
-    <button class="red" onclick="closeModal()">Close</button>
-  </div>
-</div>
 
 <script>
 const sb = window.supabase.createClient(
@@ -173,31 +136,13 @@ const sb = window.supabase.createClient(
 let data = [];
 let chart;
 
-/* LEGITIMACY ENGINE */
-function getLegitimacy(d) {
-  if (!d.date_sent || !d.date_received) return "Unknown";
-
-  const days =
-    (new Date(d.date_received) - new Date(d.date_sent)) /
-    (1000 * 60 * 60 * 24);
-
-  const auto = d.received_auto === "true" || d.received_auto === true;
-  const rts = d.rts === "true" || d.rts === true;
-
-  if (d.returned && (days <= 15 || auto)) {
-    return "Probable Secretarial/Autopen";
-  }
-
-  if (d.returned && !rts && days > 15 && days <= 120) {
-    return "Real";
-  }
-
-  return "Unknown";
-}
-
 /* LOAD */
 async function loadData() {
-  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
+  const { data: rows } = await sb
+    .from("Tracking")
+    .select("*")
+    .order("created_at", { ascending: false });
+
   data = rows || [];
   render();
   stats();
@@ -209,20 +154,19 @@ async function addEntry() {
   const name = document.getElementById("name").value;
   const address = document.getElementById("address").value;
   const date_sent = document.getElementById("dateSent").value;
-  const rts = document.getElementById("rts").value;
-  const received_auto = document.getElementById("received_auto").value;
 
   if (!name || !address) return alert("Missing fields");
 
-  await sb.from("Tracking").insert([{
+  const { error } = await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
     returned: false,
-    rts,
-    received_auto,
-    date_received: null
+    date_received: null,
+    signature_status: "pending"
   }]);
+
+  if (error) return alert(error.message);
 
   document.getElementById("name").value = "";
   document.getElementById("address").value = "";
@@ -231,17 +175,11 @@ async function addEntry() {
   loadData();
 }
 
-/* UPDATE FIELD */
-async function updateField(id, field, value) {
-  await sb.from("Tracking").update({ [field]: value }).eq("id", id);
-}
-
 /* STATUS */
 async function setStatus(id, status) {
-  await sb.from("Tracking").update({
-    returned: true,
-    signature_status: status
-  }).eq("id", id);
+  await sb.from("Tracking")
+    .update({ signature_status: status, returned: true })
+    .eq("id", id);
 
   loadData();
 }
@@ -261,11 +199,11 @@ function stats() {
   document.getElementById("notSigned").innerText = data.filter(d => d.signature_status === "not_signed").length;
 }
 
-/* PIE */
+/* PIE (SMALL + CLEAN) */
 function pie() {
-  const s = data.filter(d => d.signature_status === "signed").length;
-  const n = data.filter(d => d.signature_status === "not_signed").length;
-  const p = data.filter(d => !d.returned).length;
+  const signed = data.filter(d => d.signature_status === "signed").length;
+  const notSigned = data.filter(d => d.signature_status === "not_signed").length;
+  const pending = data.filter(d => !d.returned).length;
 
   if (chart) chart.destroy();
 
@@ -274,14 +212,18 @@ function pie() {
     data: {
       labels: ["Pending", "Signed", "Not Signed"],
       datasets: [{
-        data: [p, s, n],
+        data: [pending, signed, notSigned],
         backgroundColor: ["#ffc107", "#28a745", "#dc3545"]
       }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
     }
   });
 }
 
-/* RENDER */
+/* TABLE */
 function render() {
   const q = document.getElementById("search").value.toLowerCase();
   const t = document.getElementById("table");
@@ -306,49 +248,26 @@ function render() {
 
       t.innerHTML += `
         <tr class="${cls}">
-          <td onclick="openProfile('${d.name}')">${d.name||""}</td>
+          <td>${d.name||""}</td>
           <td>${d.address||""}</td>
-
           <td>${d.date_sent||""}</td>
 
           <td>
             <input type="date"
               value="${d.date_received||""}"
-              onchange="updateField('${d.id}','date_received',this.value)">
+              onchange="sb.from('Tracking').update({date_received:this.value}).eq('id','${d.id}')">
           </td>
-
-          <td>
-            <select onchange="updateField('${d.id}','rts',this.value)">
-              <option value="false" ${!d.rts ? "selected":""}>No</option>
-              <option value="true" ${d.rts ? "selected":""}>Yes</option>
-            </select>
-          </td>
-
-          <td>${getLegitimacy(d)}</td>
 
           <td>${status}</td>
 
           <td>
             <button class="green" onclick="setStatus('${d.id}','signed')">Signed</button>
-            <button class="orange" onclick="setStatus('${d.id}','not_signed')">Not Signed</button>
+            <button class="red" onclick="setStatus('${d.id}','not_signed')">Not Signed</button>
             <button class="red" onclick="remove('${d.id}')">Del</button>
           </td>
         </tr>
       `;
     });
-}
-
-/* PROFILE */
-function openProfile(name) {
-  const p = data.filter(d => d.name === name);
-  document.getElementById("pName").innerText = name;
-  document.getElementById("pHistory").innerHTML =
-    p.map(x => `<div>${x.date_sent} → ${x.signature_status||"pending"}</div>`).join("");
-  document.getElementById("modal").style.display = "block";
-}
-
-function closeModal() {
-  document.getElementById("modal").style.display = "none";
 }
 
 loadData();
