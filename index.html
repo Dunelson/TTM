@@ -28,11 +28,13 @@ button {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  color: white;
 }
 
-.green { background: #28a745; color: white; }
-.red { background: #dc3545; color: white; }
-.blue { background: #007bff; color: white; }
+.green { background: #1f7a3a; }
+.yellow { background: #8a6d1a; }
+.red { background: #7a1f1f; }
+.gray { background: #444; }
 
 table {
   width: 100%;
@@ -52,43 +54,15 @@ th {
   color: white;
 }
 
-/* modal */
-.modal {
-  display:none;
-  position:fixed;
-  top:0;left:0;
-  width:100%;height:100%;
-  background:rgba(0,0,0,0.5);
-}
-
-.modal-content {
-  background:white;
-  margin:10% auto;
-  padding:15px;
-  width:90%;
-  max-width:500px;
-  border-radius:8px;
-}
-
-/* stats */
-.stats {
-  display:flex;
-  gap:10px;
-  margin:10px 0;
-}
-
-.card {
-  flex:1;
-  background:white;
-  padding:10px;
-  border-radius:6px;
-  text-align:center;
-}
+/* status coloring */
+.pendingCell { background: #8a6d1a; color: white; }
+.signedCell { background: #1f7a3a; color: white; }
+.rtsCell { background: #7a1f1f; color: white; }
 
 /* chart */
 .chart-wrap {
-  max-width:300px;
-  margin:10px auto;
+  max-width: 320px;
+  margin: 10px auto;
 }
 </style>
 </head>
@@ -97,14 +71,6 @@ th {
 
 <h2>TTM Tracker</h2>
 
-<!-- STATS -->
-<div class="stats">
-  <div class="card" id="total">Total: 0</div>
-  <div class="card" id="pending">Pending: 0</div>
-  <div class="card" id="returned">Returned: 0</div>
-</div>
-
-<!-- CHART -->
 <div class="chart-wrap">
   <canvas id="pieChart"></canvas>
 </div>
@@ -131,15 +97,6 @@ th {
 <tbody id="table"></tbody>
 </table>
 
-<!-- ACTOR MODAL -->
-<div id="actorModal" class="modal" onclick="closeActor()">
-  <div class="modal-content" onclick="event.stopPropagation()">
-    <h3 id="actorName"></h3>
-    <div id="movieList"></div>
-    <button class="red" onclick="closeActor()">Close</button>
-  </div>
-</div>
-
 <script>
 
 /* =========================
@@ -151,12 +108,6 @@ const sb = window.supabase.createClient(
 );
 
 /* =========================
-   TMDB
-========================= */
-const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
-const actorCache = {};
-
-/* =========================
    STATE
 ========================= */
 let data = [];
@@ -166,10 +117,12 @@ let chart;
    LOAD
 ========================= */
 async function loadData() {
-  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
+  const { data: rows } = await sb.from("Tracking")
+    .select("*")
+    .order("created_at", { ascending: false });
+
   data = rows || [];
   render();
-  updateStats();
   updateChart();
 }
 
@@ -190,7 +143,8 @@ async function addEntry() {
     address,
     date_sent,
     date_received: null,
-    returned: false
+    returned: false,
+    rts: false
   }]);
 
   document.getElementById("name").value = "";
@@ -201,22 +155,39 @@ async function addEntry() {
 }
 
 /* =========================
-   TOGGLE RETURNED
+   STATUS ACTIONS
 ========================= */
-async function toggle(id) {
-  const item = data.find(d => d.id === id);
-  if (!item) return;
-
+async function markReceived(id) {
   await sb.from("Tracking")
-    .update({ returned: !item.returned })
+    .update({
+      returned: true,
+      rts: false,
+      date_received: new Date().toISOString().split("T")[0]
+    })
     .eq("id", id);
 
   loadData();
 }
 
-/* =========================
-   DELETE
-========================= */
+async function markRTS(id) {
+  await sb.from("Tracking")
+    .update({
+      returned: false,
+      rts: true
+    })
+    .eq("id", id);
+
+  loadData();
+}
+
+async function updateReceivedDate(id, value) {
+  await sb.from("Tracking")
+    .update({ date_received: value })
+    .eq("id", id);
+
+  loadData();
+}
+
 async function deleteEntry(id) {
   await sb.from("Tracking").delete().eq("id", id);
   loadData();
@@ -230,21 +201,46 @@ function render() {
   t.innerHTML = "";
 
   data.forEach(d => {
+
+    let statusClass = "";
+    let statusText = "Pending";
+
+    if (d.rts) {
+      statusClass = "rtsCell";
+      statusText = "RTS";
+    } else if (d.returned) {
+      statusClass = "signedCell";
+      statusText = "Signed";
+    } else {
+      statusClass = "pendingCell";
+    }
+
     t.innerHTML += `
       <tr>
-        <td onclick="openActor('${d.name}')"
-            style="color:blue;cursor:pointer">
-          ${d.name || ""}
-        </td>
+        <td>${d.name || ""}</td>
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
-        <td>${d.date_received || "-"}</td>
-        <td>${d.returned ? "Returned" : "Pending"}</td>
+
+        <td class="${statusClass}">
+          <input type="date"
+            value="${d.date_received || ""}"
+            onchange="updateReceivedDate('${d.id}', this.value)">
+        </td>
+
+        <td class="${statusClass}">
+          ${statusText}
+        </td>
+
         <td>
-          <button class="blue" onclick="toggle('${d.id}')">
-            Toggle
+          <button class="green" onclick="markReceived('${d.id}')">
+            Auto Received
           </button>
-          <button class="red" onclick="deleteEntry('${d.id}')">
+
+          <button class="red" onclick="markRTS('${d.id}')">
+            RTS
+          </button>
+
+          <button class="gray" onclick="deleteEntry('${d.id}')">
             Delete
           </button>
         </td>
@@ -254,24 +250,12 @@ function render() {
 }
 
 /* =========================
-   STATS
-========================= */
-function updateStats() {
-  const total = data.length;
-  const returned = data.filter(d => d.returned).length;
-  const pending = total - returned;
-
-  document.getElementById("total").innerText = `Total: ${total}`;
-  document.getElementById("pending").innerText = `Pending: ${pending}`;
-  document.getElementById("returned").innerText = `Returned: ${returned}`;
-}
-
-/* =========================
    PIE CHART
 ========================= */
 function updateChart() {
-  const returned = data.filter(d => d.returned).length;
-  const pending = data.length - returned;
+  const signed = data.filter(d => d.returned).length;
+  const rts = data.filter(d => d.rts).length;
+  const pending = data.length - signed - rts;
 
   const ctx = document.getElementById("pieChart");
 
@@ -280,60 +264,17 @@ function updateChart() {
   chart = new Chart(ctx, {
     type: "pie",
     data: {
-      labels: ["Returned", "Pending"],
+      labels: ["Signed", "Pending", "RTS"],
       datasets: [{
-        data: [returned, pending]
+        data: [signed, pending, rts],
+        backgroundColor: [
+          "#1f7a3a",  // green
+          "#8a6d1a",  // yellow
+          "#7a1f1f"   // red
+        ]
       }]
     }
   });
-}
-
-/* =========================
-   ACTOR LOOKUP
-========================= */
-async function openActor(name) {
-  document.getElementById("actorModal").style.display = "block";
-  document.getElementById("actorName").innerText = name;
-  document.getElementById("movieList").innerText = "Loading...";
-
-  if (actorCache[name]) {
-    renderMovies(actorCache[name]);
-    return;
-  }
-
-  const res = await fetch(
-    `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`
-  );
-
-  const json = await res.json();
-
-  if (!json.results.length) {
-    document.getElementById("movieList").innerText = "No actor found.";
-    return;
-  }
-
-  const id = json.results[0].id;
-
-  const credits = await fetch(
-    `https://api.themoviedb.org/3/person/${id}/movie_credits?api_key=${TMDB_API_KEY}`
-  );
-
-  const cjson = await credits.json();
-
-  actorCache[name] = cjson.cast || [];
-
-  renderMovies(actorCache[name]);
-}
-
-function renderMovies(movies) {
-  document.getElementById("movieList").innerHTML =
-    movies.slice(0, 15)
-      .map(m => `🎬 ${m.title} (${m.release_date || "N/A"})`)
-      .join("<br>");
-}
-
-function closeActor() {
-  document.getElementById("actorModal").style.display = "none";
 }
 
 </script>
