@@ -18,25 +18,42 @@ body {
 
 h2 { margin-bottom: 10px; }
 
-input, button {
+/* inputs */
+input {
   width: 100%;
   padding: 10px;
   margin-top: 6px;
 }
 
+/* buttons removed except primary */
 button {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  color: white;
 }
 
-/* brighter yellow */
-.pending { background: #ffcc00; color: black; }
-.received { background: #1f8f3a; }
-.rts { background: #b3261e; }
-.unsigned { background: #1e5bb3; }
+/* compact summary table */
+.summary {
+  margin: 10px auto;
+  width: 60%;
+  text-align: center;
+  background: white;
+  border-collapse: collapse;
+}
 
+.summary td {
+  padding: 6px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+}
+
+/* chart */
+.chart-wrap {
+  max-width: 260px;
+  margin: 10px auto;
+}
+
+/* table */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -46,33 +63,35 @@ table {
 
 th, td {
   border: 1px solid #ddd;
-  padding: 10px;
-  font-size: 14px;
-  vertical-align: middle;
+  padding: 6px;
+  font-size: 13px;
 }
 
-th {
-  background: #222;
+/* compact received date */
+.receivedDate {
+  width: 120px;
+  font-size: 12px;
+  padding: 4px;
+}
+
+/* status colors (FULL ROW) */
+.row-pending { background: #ffea7a; }
+.row-received { background: #c8f7d2; }
+.row-rts { background: #ffc7c7; }
+.row-unsigned { background: #cfe1ff; }
+
+/* status select compact */
+select {
+  padding: 5px;
+  font-size: 12px;
+}
+
+/* delete */
+.deleteBtn {
+  background: #b3261e;
   color: white;
-}
-
-/* make status column wider */
-.statusCell {
-  min-width: 120px;
-  text-align: center;
-  font-weight: bold;
-}
-
-/* full-row coloring */
-.row-pending { background: #fffbcc; }
-.row-received { background: #d6f5dd; }
-.row-rts { background: #ffd6d6; }
-.row-unsigned { background: #d6e6ff; }
-
-/* chart */
-.chart-wrap {
-  max-width: 320px;
-  margin: 10px auto;
+  padding: 5px;
+  font-size: 12px;
 }
 </style>
 </head>
@@ -81,15 +100,33 @@ th {
 
 <h2>TTM Tracker</h2>
 
+<!-- SUMMARY TABLE -->
+<table class="summary">
+  <tr>
+    <td>Pending</td>
+    <td id="sumPending">0</td>
+    <td>Received</td>
+    <td id="sumReceived">0</td>
+    <td>RTS</td>
+    <td id="sumRTS">0</td>
+    <td>Unsigned</td>
+    <td id="sumUnsigned">0</td>
+  </tr>
+</table>
+
+<!-- PIE -->
 <div class="chart-wrap">
   <canvas id="pieChart"></canvas>
 </div>
 
+<!-- INPUTS -->
 <input id="name" placeholder="Name">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
 
-<button onclick="addEntry()" style="background:#28a745;">Save Entry</button>
+<button onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;margin-top:6px;">
+Save Entry
+</button>
 
 <hr>
 
@@ -99,27 +136,21 @@ th {
   <th>Name</th>
   <th>Address</th>
   <th>Sent</th>
-  <th>Received Date</th>
+  <th>Received</th>
   <th>Status</th>
-  <th>Actions</th>
 </tr>
 </thead>
+
 <tbody id="table"></tbody>
 </table>
 
 <script>
 
-/* =========================
-   SUPABASE
-========================= */
 const sb = window.supabase.createClient(
   "https://aeezsewfoozizduzuidv.supabase.co",
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
-/* =========================
-   STATE
-========================= */
 let data = [];
 let chart;
 
@@ -133,13 +164,13 @@ async function loadData() {
 
   data = rows || [];
   render();
-  updateChart();
+  updateAll();
 }
 
 loadData();
 
 /* =========================
-   ADD ENTRY
+   ADD
 ========================= */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
@@ -152,8 +183,8 @@ async function addEntry() {
     name,
     address,
     date_sent,
-    status: "pending",
-    date_received: null
+    date_received: "",
+    status: "pending"
   }]);
 
   document.getElementById("name").value = "";
@@ -164,9 +195,10 @@ async function addEntry() {
 }
 
 /* =========================
-   STATUS UPDATE
+   STATUS UPDATE (CRITICAL FIX)
 ========================= */
-async function setStatus(id, status) {
+async function updateStatus(id, status) {
+
   const update = { status };
 
   if (status === "received") {
@@ -178,15 +210,6 @@ async function setStatus(id, status) {
     .eq("id", id);
 
   loadData();
-}
-
-/* =========================
-   DATE UPDATE
-========================= */
-async function updateDate(id, value) {
-  await sb.from("Tracking")
-    .update({ date_received: value })
-    .eq("id", id);
 }
 
 /* =========================
@@ -216,34 +239,24 @@ function render() {
         <td>${d.date_sent || ""}</td>
 
         <td>
-          <input type="date"
+          <input class="receivedDate"
+            type="date"
             value="${d.date_received || ""}"
-            onchange="updateDate('${d.id}', this.value)">
-        </td>
-
-        <td class="statusCell">
-          ${status.toUpperCase()}
+            onchange="updateStatus('${d.id}', '${status}')">
         </td>
 
         <td>
-
-          <select onchange="setStatus('${d.id}', this.value)">
-            <option value="pending">Pending</option>
-            <option value="received">Auto Received</option>
-            <option value="rts">RTS</option>
-            <option value="unsigned">Returned Unsigned</option>
+          <select onchange="updateStatus('${d.id}', this.value)">
+            <option value="pending" ${status==="pending"?"selected":""}>Pending</option>
+            <option value="received" ${status==="received"?"selected":""}>Auto Received</option>
+            <option value="rts" ${status==="rts"?"selected":""}>RTS</option>
+            <option value="unsigned" ${status==="unsigned"?"selected":""}>Returned Unsigned</option>
           </select>
 
-          <button style="background:#555;margin-top:5px"
-            onclick="setStatus('${d.id}', 'pending')">
-            Undo
-          </button>
-
-          <button style="background:#b3261e;margin-top:5px"
+          <button class="deleteBtn"
             onclick="deleteEntry('${d.id}')">
             Delete
           </button>
-
         </td>
 
       </tr>
@@ -252,13 +265,19 @@ function render() {
 }
 
 /* =========================
-   CHART
+   SUMMARY + CHART FIXED
 ========================= */
-function updateChart() {
-  const pending = data.filter(d => (d.status || "pending") === "pending").length;
-  const received = data.filter(d => d.status === "received").length;
-  const rts = data.filter(d => d.status === "rts").length;
-  const unsigned = data.filter(d => d.status === "unsigned").length;
+function updateAll() {
+
+  const pending = data.filter(d => (d.status||"pending")==="pending").length;
+  const received = data.filter(d => d.status==="received").length;
+  const rts = data.filter(d => d.status==="rts").length;
+  const unsigned = data.filter(d => d.status==="unsigned").length;
+
+  document.getElementById("sumPending").innerText = pending;
+  document.getElementById("sumReceived").innerText = received;
+  document.getElementById("sumRTS").innerText = rts;
+  document.getElementById("sumUnsigned").innerText = unsigned;
 
   const ctx = document.getElementById("pieChart");
 
@@ -272,7 +291,7 @@ function updateChart() {
         data: [received, pending, rts, unsigned],
         backgroundColor: [
           "#1f8f3a",
-          "#ffcc00",
+          "#ffea7a",
           "#b3261e",
           "#1e5bb3"
         ]
