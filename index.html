@@ -31,10 +31,11 @@ button {
   color: white;
 }
 
-.green { background: #1f7a3a; }
-.yellow { background: #8a6d1a; }
-.red { background: #7a1f1f; }
-.gray { background: #444; }
+/* brighter yellow */
+.pending { background: #ffcc00; color: black; }
+.received { background: #1f8f3a; }
+.rts { background: #b3261e; }
+.unsigned { background: #1e5bb3; }
 
 table {
   width: 100%;
@@ -45,8 +46,9 @@ table {
 
 th, td {
   border: 1px solid #ddd;
-  padding: 8px;
+  padding: 10px;
   font-size: 14px;
+  vertical-align: middle;
 }
 
 th {
@@ -54,10 +56,18 @@ th {
   color: white;
 }
 
-/* status coloring */
-.pendingCell { background: #8a6d1a; color: white; }
-.signedCell { background: #1f7a3a; color: white; }
-.rtsCell { background: #7a1f1f; color: white; }
+/* make status column wider */
+.statusCell {
+  min-width: 120px;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* full-row coloring */
+.row-pending { background: #fffbcc; }
+.row-received { background: #d6f5dd; }
+.row-rts { background: #ffd6d6; }
+.row-unsigned { background: #d6e6ff; }
 
 /* chart */
 .chart-wrap {
@@ -79,7 +89,7 @@ th {
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
 
-<button class="green" onclick="addEntry()">Save Entry</button>
+<button onclick="addEntry()" style="background:#28a745;">Save Entry</button>
 
 <hr>
 
@@ -89,7 +99,7 @@ th {
   <th>Name</th>
   <th>Address</th>
   <th>Sent</th>
-  <th>Received</th>
+  <th>Received Date</th>
   <th>Status</th>
   <th>Actions</th>
 </tr>
@@ -142,9 +152,8 @@ async function addEntry() {
     name,
     address,
     date_sent,
-    date_received: null,
-    returned: false,
-    rts: false
+    status: "pending",
+    date_received: null
   }]);
 
   document.getElementById("name").value = "";
@@ -155,39 +164,34 @@ async function addEntry() {
 }
 
 /* =========================
-   STATUS ACTIONS
+   STATUS UPDATE
 ========================= */
-async function markReceived(id) {
+async function setStatus(id, status) {
+  const update = { status };
+
+  if (status === "received") {
+    update.date_received = new Date().toISOString().split("T")[0];
+  }
+
   await sb.from("Tracking")
-    .update({
-      returned: true,
-      rts: false,
-      date_received: new Date().toISOString().split("T")[0]
-    })
+    .update(update)
     .eq("id", id);
 
   loadData();
 }
 
-async function markRTS(id) {
-  await sb.from("Tracking")
-    .update({
-      returned: false,
-      rts: true
-    })
-    .eq("id", id);
-
-  loadData();
-}
-
-async function updateReceivedDate(id, value) {
+/* =========================
+   DATE UPDATE
+========================= */
+async function updateDate(id, value) {
   await sb.from("Tracking")
     .update({ date_received: value })
     .eq("id", id);
-
-  loadData();
 }
 
+/* =========================
+   DELETE
+========================= */
 async function deleteEntry(id) {
   await sb.from("Tracking").delete().eq("id", id);
   loadData();
@@ -202,60 +206,59 @@ function render() {
 
   data.forEach(d => {
 
-    let statusClass = "";
-    let statusText = "Pending";
-
-    if (d.rts) {
-      statusClass = "rtsCell";
-      statusText = "RTS";
-    } else if (d.returned) {
-      statusClass = "signedCell";
-      statusText = "Signed";
-    } else {
-      statusClass = "pendingCell";
-    }
+    const status = d.status || "pending";
 
     t.innerHTML += `
-      <tr>
+      <tr class="row-${status}">
+
         <td>${d.name || ""}</td>
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
 
-        <td class="${statusClass}">
+        <td>
           <input type="date"
             value="${d.date_received || ""}"
-            onchange="updateReceivedDate('${d.id}', this.value)">
+            onchange="updateDate('${d.id}', this.value)">
         </td>
 
-        <td class="${statusClass}">
-          ${statusText}
+        <td class="statusCell">
+          ${status.toUpperCase()}
         </td>
 
         <td>
-          <button class="green" onclick="markReceived('${d.id}')">
-            Auto Received
+
+          <select onchange="setStatus('${d.id}', this.value)">
+            <option value="pending">Pending</option>
+            <option value="received">Auto Received</option>
+            <option value="rts">RTS</option>
+            <option value="unsigned">Returned Unsigned</option>
+          </select>
+
+          <button style="background:#555;margin-top:5px"
+            onclick="setStatus('${d.id}', 'pending')">
+            Undo
           </button>
 
-          <button class="red" onclick="markRTS('${d.id}')">
-            RTS
-          </button>
-
-          <button class="gray" onclick="deleteEntry('${d.id}')">
+          <button style="background:#b3261e;margin-top:5px"
+            onclick="deleteEntry('${d.id}')">
             Delete
           </button>
+
         </td>
+
       </tr>
     `;
   });
 }
 
 /* =========================
-   PIE CHART
+   CHART
 ========================= */
 function updateChart() {
-  const signed = data.filter(d => d.returned).length;
-  const rts = data.filter(d => d.rts).length;
-  const pending = data.length - signed - rts;
+  const pending = data.filter(d => (d.status || "pending") === "pending").length;
+  const received = data.filter(d => d.status === "received").length;
+  const rts = data.filter(d => d.status === "rts").length;
+  const unsigned = data.filter(d => d.status === "unsigned").length;
 
   const ctx = document.getElementById("pieChart");
 
@@ -264,13 +267,14 @@ function updateChart() {
   chart = new Chart(ctx, {
     type: "pie",
     data: {
-      labels: ["Signed", "Pending", "RTS"],
+      labels: ["Received", "Pending", "RTS", "Unsigned"],
       datasets: [{
-        data: [signed, pending, rts],
+        data: [received, pending, rts, unsigned],
         backgroundColor: [
-          "#1f7a3a",  // green
-          "#8a6d1a",  // yellow
-          "#7a1f1f"   // red
+          "#1f8f3a",
+          "#ffcc00",
+          "#b3261e",
+          "#1e5bb3"
         ]
       }]
     }
