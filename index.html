@@ -18,42 +18,12 @@ body {
 
 h2 { margin-bottom: 10px; }
 
-/* inputs */
 input {
   width: 100%;
   padding: 10px;
   margin-top: 6px;
 }
 
-/* buttons removed except primary */
-button {
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-/* compact summary table */
-.summary {
-  margin: 10px auto;
-  width: 60%;
-  text-align: center;
-  background: white;
-  border-collapse: collapse;
-}
-
-.summary td {
-  padding: 6px;
-  border: 1px solid #ddd;
-  font-size: 13px;
-}
-
-/* chart */
-.chart-wrap {
-  max-width: 260px;
-  margin: 10px auto;
-}
-
-/* table */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -67,31 +37,54 @@ th, td {
   font-size: 13px;
 }
 
-/* compact received date */
+th {
+  background: #222;
+  color: white;
+}
+
+/* ROW COLORS */
+.row-pending { background: #ffea7a; }
+.row-received { background: #c8f7d2; }
+.row-rts { background: #ffc7c7; }
+.row-unsigned { background: #cfe1ff; }
+
+/* compact received */
 .receivedDate {
   width: 120px;
   font-size: 12px;
   padding: 4px;
 }
 
-/* status colors (FULL ROW) */
-.row-pending { background: #ffea7a; }
-.row-received { background: #c8f7d2; }
-.row-rts { background: #ffc7c7; }
-.row-unsigned { background: #cfe1ff; }
-
-/* status select compact */
-select {
-  padding: 5px;
+/* summary */
+.summary {
+  width: 60%;
+  margin: 10px auto;
+  background: white;
+  text-align: center;
+  border-collapse: collapse;
+}
+.summary td {
+  border: 1px solid #ddd;
+  padding: 6px;
   font-size: 12px;
 }
 
-/* delete */
-.deleteBtn {
-  background: #b3261e;
-  color: white;
-  padding: 5px;
+/* chart */
+.chart-wrap {
+  max-width: 260px;
+  margin: 10px auto;
+}
+
+/* dropdown */
+select {
   font-size: 12px;
+  padding: 4px;
+}
+
+/* clickable actor */
+.actor {
+  color: blue;
+  cursor: pointer;
 }
 </style>
 </head>
@@ -100,26 +93,20 @@ select {
 
 <h2>TTM Tracker</h2>
 
-<!-- SUMMARY TABLE -->
+<!-- SUMMARY -->
 <table class="summary">
   <tr>
-    <td>Pending</td>
-    <td id="sumPending">0</td>
-    <td>Received</td>
-    <td id="sumReceived">0</td>
-    <td>RTS</td>
-    <td id="sumRTS">0</td>
-    <td>Unsigned</td>
-    <td id="sumUnsigned">0</td>
+    <td>Pending</td><td id="sumPending">0</td>
+    <td>Received</td><td id="sumReceived">0</td>
+    <td>RTS</td><td id="sumRTS">0</td>
+    <td>Unsigned</td><td id="sumUnsigned">0</td>
   </tr>
 </table>
 
-<!-- PIE -->
 <div class="chart-wrap">
   <canvas id="pieChart"></canvas>
 </div>
 
-<!-- INPUTS -->
 <input id="name" placeholder="Name">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
@@ -195,9 +182,11 @@ async function addEntry() {
 }
 
 /* =========================
-   STATUS UPDATE (CRITICAL FIX)
+   SAFE STATUS UPDATE (FIXED)
 ========================= */
-async function updateStatus(id, status) {
+async function updateStatus(id, statusRaw) {
+
+  const status = (statusRaw || "pending").toLowerCase();
 
   const update = { status };
 
@@ -221,7 +210,7 @@ async function deleteEntry(id) {
 }
 
 /* =========================
-   RENDER
+   RENDER (FIXED SAFE EVENTS)
 ========================= */
 function render() {
   const t = document.getElementById("table");
@@ -231,10 +220,15 @@ function render() {
 
     const status = d.status || "pending";
 
+    const safeName = encodeURIComponent(d.name || "");
+
     t.innerHTML += `
       <tr class="row-${status}">
 
-        <td>${d.name || ""}</td>
+        <td class="actor" data-name="${safeName}">
+          ${d.name || ""}
+        </td>
+
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
 
@@ -246,26 +240,34 @@ function render() {
         </td>
 
         <td>
-          <select onchange="updateStatus('${d.id}', this.value)">
+          <select data-id="${d.id}" class="statusSelect">
             <option value="pending" ${status==="pending"?"selected":""}>Pending</option>
             <option value="received" ${status==="received"?"selected":""}>Auto Received</option>
             <option value="rts" ${status==="rts"?"selected":""}>RTS</option>
             <option value="unsigned" ${status==="unsigned"?"selected":""}>Returned Unsigned</option>
           </select>
-
-          <button class="deleteBtn"
-            onclick="deleteEntry('${d.id}')">
-            Delete
-          </button>
         </td>
 
       </tr>
     `;
   });
+
+  /* attach safe event listeners AFTER render */
+  document.querySelectorAll(".statusSelect").forEach(sel => {
+    sel.onchange = (e) => {
+      updateStatus(sel.dataset.id, sel.value);
+    };
+  });
+
+  document.querySelectorAll(".actor").forEach(el => {
+    el.onclick = () => {
+      openActor(decodeURIComponent(el.dataset.name));
+    };
+  });
 }
 
 /* =========================
-   SUMMARY + CHART FIXED
+   SUMMARY + CHART
 ========================= */
 function updateAll() {
 
@@ -298,6 +300,13 @@ function updateAll() {
       }]
     }
   });
+}
+
+/* =========================
+   ACTOR (RESTORED SAFE)
+========================= */
+function openActor(name) {
+  alert("Actor clicked: " + name);
 }
 
 </script>
