@@ -68,17 +68,17 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 <button onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;">Save Entry</button>
 
 <!-- Sort Control -->
-<div style="margin: 10px 0;">
+<div style="margin: 12px 0 8px 0;">
   <strong>Sort by:</strong> 
   <select id="sortBy" onchange="render()">
     <option value="name">Name (A-Z)</option>
     <option value="role">Role Type</option>
     <option value="known_for">Known For</option>
-    <option value="date_sent">Date Sent (Newest)</option>
+    <option value="date_sent">Date Sent (Newest First)</option>
   </select>
 </div>
 
-<input id="search" placeholder="Search..." oninput="render()" style="margin-top:8px;">
+<input id="search" placeholder="Search..." oninput="render()">
 
 <hr>
 
@@ -111,23 +111,21 @@ const sb = window.supabase.createClient(
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
-const TMDB_API_KEY = "YOUR_TMDB_API_KEY_HERE";
+const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
 
 let data = [];
 let chart;
 
-/* ========================= LOAD ========================= */
+/* Load Data */
 async function loadData() {
-  const { data: rows } = await sb.from("Tracking")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
-  render();
+  render();           // Important: render immediately after loading
   updateStats();
 }
 loadData();
 
-/* ========================= ADD ========================= */
+/* Add Entry */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const role_type = document.getElementById("role_type").value;
@@ -142,10 +140,9 @@ async function addEntry() {
   }]);
 
   clearForm();
-  loadData();        // This will trigger re-render with current sort
+  loadData();   // Reload + re-render with current sort
 }
 
-/* Clear Form */
 function clearForm() {
   document.getElementById("name").value = "";
   document.getElementById("role_type").value = "";
@@ -154,7 +151,7 @@ function clearForm() {
   document.getElementById("dateSent").value = "";
 }
 
-/* ========================= UPDATES ========================= */
+/* Update Functions */
 async function updateRoleType(id, value) {
   await sb.from("Tracking").update({ role_type: value }).eq("id", id);
   loadData();
@@ -180,10 +177,10 @@ async function deleteEntry(id) {
   }
 }
 
-/* ========================= RENDER WITH SORTING ========================= */
+/* Render with Sorting */
 function render() {
   const search = (document.getElementById("search").value || "").toLowerCase().trim();
-  const sortBy = document.getElementById("sortBy").value;
+  const sortBy = document.getElementById("sortBy").value || "name";
 
   let filtered = data.filter(d =>
     (d.name || "").toLowerCase().includes(search) ||
@@ -192,29 +189,29 @@ function render() {
     (d.address || "").toLowerCase().includes(search)
   );
 
-  // Apply Sorting
+  // Sorting Logic
   filtered.sort((a, b) => {
-    if (sortBy === "name") {
-      return (a.name || "").localeCompare(b.name || "");
+    switch(sortBy) {
+      case "name":
+        return (a.name || "").localeCompare(b.name || "");
+      case "role":
+        return (a.role_type || "").localeCompare(b.role_type || "");
+      case "known_for":
+        return (a.known_for || "").localeCompare(b.known_for || "");
+      case "date_sent":
+        // Newest first
+        return (b.date_sent || "1900-01-01") > (a.date_sent || "1900-01-01") ? 1 : -1;
+      default:
+        return 0;
     }
-    if (sortBy === "role") {
-      return (a.role_type || "").localeCompare(b.role_type || "");
-    }
-    if (sortBy === "known_for") {
-      return (a.known_for || "").localeCompare(b.known_for || "");
-    }
-    if (sortBy === "date_sent") {
-      return (b.date_sent || "") - (a.date_sent || "");   // Newest first
-    }
-    return 0;
   });
 
-  const t = document.getElementById("table");
-  t.innerHTML = "";
+  const tbody = document.getElementById("table");
+  tbody.innerHTML = "";
 
   filtered.forEach(d => {
     const status = d.status || "pending";
-    t.innerHTML += `
+    tbody.innerHTML += `
       <tr class="row-${status}">
         <td class="actor" data-name="${d.name}" data-role="${d.role_type || ''}" data-known="${d.known_for || ''}">
           ${d.name || ""}
@@ -246,15 +243,13 @@ function render() {
             <option value="unsigned" ${status==="unsigned"?"selected":""}>Unsigned</option>
           </select>
         </td>
-        <td>
-          <button class="deleteBtn" data-id="${d.id}" data-action="delete">Delete</button>
-        </td>
+        <td><button class="deleteBtn" data-id="${d.id}" data-action="delete">Delete</button></td>
       </tr>
     `;
   });
 }
 
-/* ========================= ACTOR MODAL ========================= */
+/* Actor Info Modal */
 async function showActorInfo(name, role_type = "", known_for = "") {
   const modal = document.getElementById("actorModal");
   const modalName = document.getElementById("modalName");
@@ -264,10 +259,7 @@ async function showActorInfo(name, role_type = "", known_for = "") {
   modalContent.innerHTML = "Searching TMDB...";
   modal.style.display = "block";
 
-  let query = name;
-  if (role_type || known_for) {
-    query = [name, role_type, known_for].filter(Boolean).join(" ");
-  }
+  let query = [name, role_type, known_for].filter(Boolean).join(" ");
 
   try {
     let res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`);
@@ -279,7 +271,7 @@ async function showActorInfo(name, role_type = "", known_for = "") {
     }
 
     if (!json.results || json.results.length === 0) {
-      modalContent.innerHTML = `<p>No results found for <strong>${name}</strong>.</p>`;
+      modalContent.innerHTML = `<p>No results found.</p>`;
       return;
     }
 
@@ -289,10 +281,12 @@ async function showActorInfo(name, role_type = "", known_for = "") {
 
     let html = `<p><strong>Department:</strong> ${person.known_for_department || 'Acting'}</p>`;
 
-    if (details.biography) html += `<p><strong>Bio:</strong><br>${details.biography.substring(0, 380)}...</p>`;
+    if (details.biography) {
+      html += `<p><strong>Bio:</strong><br>${details.biography.substring(0, 400)}...</p>`;
+    }
 
     if (details.combined_credits?.cast?.length) {
-      html += `<p><strong>Notable Credits:</strong></p><ul>`;
+      html += `<p><strong>Notable Roles:</strong></p><ul>`;
       details.combined_credits.cast.slice(0, 8).forEach(c => {
         html += `<li>${c.title || c.name} ${c.character ? `(${c.character})` : ''}</li>`;
       });
@@ -303,7 +297,7 @@ async function showActorInfo(name, role_type = "", known_for = "") {
 
   } catch (err) {
     console.error(err);
-    modalContent.innerHTML = `<p style="color:red;">Error loading from TMDB.</p>`;
+    modalContent.innerHTML = `<p style="color:red;">Error loading data from TMDB.</p>`;
   }
 }
 
@@ -311,7 +305,7 @@ function closeModal() {
   document.getElementById("actorModal").style.display = "none";
 }
 
-/* ========================= EVENTS ========================= */
+/* Events */
 document.addEventListener("click", (e) => {
   if (e.target.classList.contains("actor")) {
     const name = e.target.dataset.name;
@@ -332,7 +326,7 @@ document.addEventListener("change", (e) => {
   if (action === "date") updateDate(id, e.target.value);
 });
 
-/* ========================= STATS ========================= */
+/* Stats & Chart */
 function updateStats() {
   const pending = data.filter(d => (d.status||"pending") === "pending").length;
   const received = data.filter(d => d.status === "received").length;
