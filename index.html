@@ -22,33 +22,6 @@ input {
   margin-top: 6px;
 }
 
-/* search */
-#search {
-  margin-bottom: 10px;
-}
-
-/* summary */
-.summary {
-  width: 70%;
-  margin: 10px auto;
-  background: white;
-  text-align: center;
-  border-collapse: collapse;
-}
-
-.summary td {
-  border: 1px solid #ddd;
-  padding: 6px;
-  font-size: 12px;
-}
-
-/* chart */
-.chart-wrap {
-  max-width: 260px;
-  margin: 10px auto;
-}
-
-/* table */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -62,15 +35,31 @@ th, td {
   font-size: 13px;
 }
 
-/* row colors */
+/* ROW COLORS */
 .row-pending { background: #ffea7a; }
 .row-received { background: #c8f7d2; }
 .row-rts { background: #ffc7c7; }
 .row-unsigned { background: #cfe1ff; }
 
-select {
+/* compact inputs */
+.dateInput {
+  width: 120px;
   font-size: 12px;
   padding: 4px;
+}
+
+/* clickable actor */
+.actor {
+  color: blue;
+  cursor: pointer;
+}
+
+/* delete button */
+.deleteBtn {
+  background: #b3261e;
+  color: white;
+  padding: 4px;
+  font-size: 12px;
 }
 </style>
 </head>
@@ -79,21 +68,7 @@ select {
 
 <h2>TTM Tracker</h2>
 
-<input id="search" placeholder="Search name or address..." oninput="render()">
-
-<!-- SUMMARY -->
-<table class="summary">
-  <tr>
-    <td>Pending</td><td id="sumPending">0</td>
-    <td>Received</td><td id="sumReceived">0</td>
-    <td>RTS</td><td id="sumRTS">0</td>
-    <td>Unsigned</td><td id="sumUnsigned">0</td>
-  </tr>
-</table>
-
-<div class="chart-wrap">
-  <canvas id="pieChart"></canvas>
-</div>
+<input id="search" placeholder="Search..." oninput="render()">
 
 <input id="name" placeholder="Name">
 <input id="address" placeholder="Address">
@@ -113,6 +88,7 @@ Save Entry
   <th>Sent</th>
   <th>Received</th>
   <th>Status</th>
+  <th>Actions</th>
 </tr>
 </thead>
 
@@ -133,25 +109,18 @@ let chart;
    LOAD
 ========================= */
 async function loadData() {
-  const { data: rows, error } = await sb.from("Tracking")
+  const { data: rows } = await sb.from("Tracking")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error) {
-    console.log(error);
-    alert("DB error: " + error.message);
-    return;
-  }
-
   data = rows || [];
   render();
-  updateAll();
 }
 
 loadData();
 
 /* =========================
-   ADD ENTRY (FIXED)
+   ADD
 ========================= */
 async function addEntry() {
 
@@ -161,18 +130,13 @@ async function addEntry() {
 
   if (!name || !address) return alert("Missing fields");
 
-  const { error } = await sb.from("Tracking").insert([{
+  await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
-    status: "pending"
+    status: "pending",
+    date_received: null
   }]);
-
-  if (error) {
-    console.log(error);
-    alert("Insert failed: " + error.message);
-    return;
-  }
 
   document.getElementById("name").value = "";
   document.getElementById("address").value = "";
@@ -182,7 +146,7 @@ async function addEntry() {
 }
 
 /* =========================
-   STATUS UPDATE
+   UPDATE STATUS
 ========================= */
 async function updateStatus(id, status) {
 
@@ -192,20 +156,43 @@ async function updateStatus(id, status) {
     update.date_received = new Date().toISOString().split("T")[0];
   }
 
-  const { error } = await sb.from("Tracking")
+  await sb.from("Tracking")
     .update(update)
     .eq("id", id);
-
-  if (error) {
-    console.log(error);
-    alert("Update failed: " + error.message);
-  }
 
   loadData();
 }
 
 /* =========================
-   RENDER (WITH SEARCH)
+   UPDATE DATE (FIXED CLEAR SUPPORT)
+========================= */
+async function updateDate(id, value) {
+
+  await sb.from("Tracking")
+    .update({
+      date_received: value === "" ? null : value
+    })
+    .eq("id", id);
+
+  loadData();
+}
+
+/* =========================
+   DELETE (RESTORED)
+========================= */
+async function deleteEntry(id) {
+
+  if (!confirm("Delete entry?")) return;
+
+  await sb.from("Tracking")
+    .delete()
+    .eq("id", id);
+
+  loadData();
+}
+
+/* =========================
+   RENDER (SAFE EVENT MODEL)
 ========================= */
 function render() {
 
@@ -225,62 +212,82 @@ function render() {
 
     t.innerHTML += `
       <tr class="row-${status}">
-        <td>${d.name || ""}</td>
+
+        <td class="actor" data-name="${d.name}">
+          ${d.name || ""}
+        </td>
+
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
+
         <td>
-          <input type="date"
+          <input class="dateInput"
+            type="date"
             value="${d.date_received || ""}"
-            onchange="updateStatus('${d.id}', '${status}')">
+            data-id="${d.id}"
+            data-action="date">
+          <button data-id="${d.id}" data-action="clearDate">Clear</button>
         </td>
+
         <td>
-          <select onchange="updateStatus('${d.id}', this.value)">
+          <select data-id="${d.id}" data-action="status">
             <option value="pending" ${status==="pending"?"selected":""}>Pending</option>
             <option value="received" ${status==="received"?"selected":""}>Received</option>
             <option value="rts" ${status==="rts"?"selected":""}>RTS</option>
             <option value="unsigned" ${status==="unsigned"?"selected":""}>Unsigned</option>
           </select>
         </td>
+
+        <td>
+          <button class="deleteBtn"
+            data-id="${d.id}"
+            data-action="delete">
+            Delete
+          </button>
+        </td>
+
       </tr>
     `;
   });
 }
 
 /* =========================
-   SUMMARY + CHART
+   EVENT DELEGATION (FIXES ALL CLICK BUGS)
 ========================= */
-function updateAll() {
+document.addEventListener("click", (e) => {
 
-  const pending = data.filter(d => (d.status||"pending")==="pending").length;
-  const received = data.filter(d => d.status==="received").length;
-  const rts = data.filter(d => d.status==="rts").length;
-  const unsigned = data.filter(d => d.status==="unsigned").length;
+  const id = e.target.dataset.id;
+  const action = e.target.dataset.action;
 
-  document.getElementById("sumPending").innerText = pending;
-  document.getElementById("sumReceived").innerText = received;
-  document.getElementById("sumRTS").innerText = rts;
-  document.getElementById("sumUnsigned").innerText = unsigned;
+  if (!action) return;
 
-  const ctx = document.getElementById("pieChart");
+  if (action === "delete") {
+    deleteEntry(id);
+  }
 
-  if (chart) chart.destroy();
+  if (action === "clearDate") {
+    updateDate(id, null);
+  }
 
-  chart = new Chart(ctx, {
-    type: "pie",
-    data: {
-      labels: ["Received", "Pending", "RTS", "Unsigned"],
-      datasets: [{
-        data: [received, pending, rts, unsigned],
-        backgroundColor: [
-          "#1f8f3a",
-          "#ffea7a",
-          "#b3261e",
-          "#1e5bb3"
-        ]
-      }]
-    }
-  });
-}
+  if (e.target.classList.contains("actor")) {
+    alert("Actor: " + e.target.dataset.name);
+  }
+});
+
+/* status change */
+document.addEventListener("change", (e) => {
+
+  const id = e.target.dataset.id;
+  const action = e.target.dataset.action;
+
+  if (action === "status") {
+    updateStatus(id, e.target.value);
+  }
+
+  if (action === "date") {
+    updateDate(id, e.target.value);
+  }
+});
 
 </script>
 
