@@ -4,93 +4,65 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TTM Tracker</title>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
-body {
-  font-family: Arial;
-  margin: 0;
-  padding: 15px;
-  background: #f4f6f8;
-}
+body { font-family: Arial; margin: 0; padding: 15px; background: #f4f6f8; }
+input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; }
 
-input, select {
-  width: 100%;
-  padding: 10px;
-  margin-top: 6px;
-}
+.dateInput { width: 130px; font-size: 12px; padding: 4px; }
+.role-input, .known-input { width: 160px; font-size: 12px; padding: 3px; }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 10px;
-  background: white;
-}
+.summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
+.summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
+.chart-wrap { max-width: 220px; margin: 10px auto; }
 
-th, td {
-  border: 1px solid #ddd;
-  padding: 6px;
-  font-size: 13px;
-}
+table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 
 .row-pending { background: #ffea7a; }
 .row-received { background: #c8f7d2; }
 .row-rts { background: #ffc7c7; }
 .row-unsigned { background: #cfe1ff; }
 
-.actor {
-  color: blue;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.dateInput {
-  width: 120px;
-  font-size: 12px;
-  padding: 4px;
-}
+.actor { color: blue; cursor: pointer; text-decoration: underline; }
+.actor:hover { color: darkblue; }
 
 .deleteBtn {
-  background: #b3261e;
-  color: white;
-  padding: 4px;
-  font-size: 12px;
-  border: none;
+  background: #b3261e; color: white; padding: 4px 8px; font-size: 12px; border: none; cursor: pointer;
+}
+
+#actorModal {
+  display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: white; padding: 20px; border: 1px solid #ccc; 
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 90%; max-height: 85vh; overflow-y: auto; z-index: 1000;
 }
 </style>
 </head>
-
 <body>
-
 <h2>TTM Tracker</h2>
 
 <!-- SUMMARY -->
-<table>
-<tr>
-  <td>Pending</td><td id="sumPending">0</td>
-  <td>Received</td><td id="sumReceived">0</td>
-  <td>RTS</td><td id="sumRTS">0</td>
-  <td>Unsigned</td><td id="sumUnsigned">0</td>
-</tr>
+<table class="summary">
+  <tr>
+    <td>Pending</td><td id="sumPending">0</td>
+    <td>Received</td><td id="sumReceived">0</td>
+    <td>RTS</td><td id="sumRTS">0</td>
+    <td>Unsigned</td><td id="sumUnsigned">0</td>
+  </tr>
 </table>
+<div class="chart-wrap"><canvas id="pieChart"></canvas></div>
 
-<canvas id="pieChart" height="120"></canvas>
-
-<!-- SEARCH -->
-<input id="search" placeholder="Search..." oninput="render()">
-
-<!-- ENTRY FORM -->
+<!-- INPUT FORM -->
 <input id="name" placeholder="Name">
+<input id="role_type" placeholder="Role Type (Actor / Director / Producer)">
+<input id="known_for" placeholder="Known For (Biggest Role/Project)">
 <input id="address" placeholder="Address">
-<input id="roleType" placeholder="Role Type (Actor / Director / Producer)">
-<input id="knownFor" placeholder="Known For (e.g. Halloween, Breaking Bad)">
 <input id="dateSent" type="date">
 
-<button onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;margin-top:6px;">
-Save Entry
-</button>
+<button onclick="addEntry()" style="background:#28a745;color:white;width:100%;">Save Entry</button>
+
+<input id="search" placeholder="Search by name, role, or project..." oninput="render()" style="margin-top:12px;">
 
 <hr>
 
@@ -98,7 +70,7 @@ Save Entry
 <thead>
 <tr>
   <th>Name</th>
-  <th>Role</th>
+  <th>Role Type</th>
   <th>Known For</th>
   <th>Address</th>
   <th>Sent</th>
@@ -110,117 +82,102 @@ Save Entry
 <tbody id="table"></tbody>
 </table>
 
-<script>
+<!-- Actor Modal -->
+<div id="actorModal">
+  <h3 id="modalName"></h3>
+  <div id="modalContent">Loading from TMDB...</div>
+  <button onclick="closeModal()" style="margin-top:15px;">Close</button>
+</div>
 
+<script>
 const sb = window.supabase.createClient(
   "https://aeezsewfoozizduzuidv.supabase.co",
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
+const TMDB_API_KEY = "YOUR_TMDB_API_KEY_HERE";   // ←←← Change this
+
 let data = [];
 let chart;
 
-/* =========================
-   LOAD
-========================= */
+/* ========================= LOAD DATA ========================= */
 async function loadData() {
   const { data: rows } = await sb.from("Tracking")
     .select("*")
     .order("created_at", { ascending: false });
-
   data = rows || [];
   render();
   updateStats();
 }
-
 loadData();
 
-/* =========================
-   ADD ENTRY
-========================= */
+/* ========================= ADD NEW ENTRY ========================= */
 async function addEntry() {
-
   const name = document.getElementById("name").value.trim();
+  const role_type = document.getElementById("role_type").value.trim();
+  const known_for = document.getElementById("known_for").value.trim();
   const address = document.getElementById("address").value.trim();
-  const role_type = document.getElementById("roleType").value.trim();
-  const known_for = document.getElementById("knownFor").value.trim();
   const date_sent = document.getElementById("dateSent").value;
 
-  if (!name || !address) return alert("Name + Address required");
+  if (!name || !address) return alert("Name and Address are required");
 
-  const { error } = await sb.from("Tracking").insert([{
+  await sb.from("Tracking").insert([{
     name,
-    address,
     role_type,
     known_for,
+    address,
     date_sent,
-    status: "pending",
-    date_received: null
+    status: "pending"
   }]);
 
-  if (error) {
-    console.log(error);
-    alert(error.message);
-    return;
-  }
-
+  // Clear inputs
   document.getElementById("name").value = "";
+  document.getElementById("role_type").value = "";
+  document.getElementById("known_for").value = "";
   document.getElementById("address").value = "";
-  document.getElementById("roleType").value = "";
-  document.getElementById("knownFor").value = "";
   document.getElementById("dateSent").value = "";
 
   loadData();
 }
 
-/* =========================
-   STATUS UPDATE
-========================= */
+/* ========================= UPDATE FUNCTIONS ========================= */
+async function updateRoleType(id, value) {
+  await sb.from("Tracking").update({ role_type: value }).eq("id", id);
+  loadData();
+}
+
+async function updateKnownFor(id, value) {
+  await sb.from("Tracking").update({ known_for: value }).eq("id", id);
+  loadData();
+}
+
 async function updateStatus(id, status) {
-
   const update = { status };
-
-  if (status === "received") {
-    update.date_received = new Date().toISOString().split("T")[0];
-  }
-
-  await sb.from("Tracking")
-    .update(update)
-    .eq("id", id);
-
+  if (status === "received") update.date_received = new Date().toISOString().split("T")[0];
+  await sb.from("Tracking").update(update).eq("id", id);
   loadData();
 }
 
-/* =========================
-   DATE UPDATE
-========================= */
 async function updateDate(id, value) {
-
-  await sb.from("Tracking")
-    .update({ date_received: value || null })
-    .eq("id", id);
-
+  await sb.from("Tracking").update({ date_received: value || null }).eq("id", id);
   loadData();
 }
 
-/* =========================
-   DELETE
-========================= */
 async function deleteEntry(id) {
-  await sb.from("Tracking").delete().eq("id", id);
-  loadData();
+  if (confirm("Delete this entry?")) {
+    await sb.from("Tracking").delete().eq("id", id);
+    loadData();
+  }
 }
 
-/* =========================
-   RENDER
-========================= */
+/* ========================= RENDER TABLE ========================= */
 function render() {
-
-  const search = (document.getElementById("search").value || "").toLowerCase();
+  const search = (document.getElementById("search").value || "").toLowerCase().trim();
 
   const filtered = data.filter(d =>
     (d.name || "").toLowerCase().includes(search) ||
     (d.address || "").toLowerCase().includes(search) ||
+    (d.role_type || "").toLowerCase().includes(search) ||
     (d.known_for || "").toLowerCase().includes(search)
   );
 
@@ -228,29 +185,27 @@ function render() {
   t.innerHTML = "";
 
   filtered.forEach(d => {
-
     const status = d.status || "pending";
 
     t.innerHTML += `
       <tr class="row-${status}">
-
-        <td class="actor" data-name="${d.name}">
+        <td class="actor" data-name="${d.name}" data-role="${d.role_type || ''}" data-known="${d.known_for || ''}">
           ${d.name || ""}
         </td>
-
-        <td>${d.role_type || ""}</td>
-        <td>${d.known_for || ""}</td>
+        <td>
+          <input type="text" class="role-input" value="${d.role_type || ''}" 
+                 data-id="${d.id}" onchange="updateRoleType(this.dataset.id, this.value)">
+        </td>
+        <td>
+          <input type="text" class="known-input" value="${d.known_for || ''}" 
+                 data-id="${d.id}" onchange="updateKnownFor(this.dataset.id, this.value)">
+        </td>
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
-
         <td>
-          <input class="dateInput"
-            type="date"
-            value="${d.date_received || ""}"
-            data-id="${d.id}"
-            data-action="date">
+          <input class="dateInput" type="date" value="${d.date_received || ""}"
+                 data-id="${d.id}" data-action="date">
         </td>
-
         <td>
           <select data-id="${d.id}" data-action="status">
             <option value="pending" ${status==="pending"?"selected":""}>Pending</option>
@@ -259,39 +214,90 @@ function render() {
             <option value="unsigned" ${status==="unsigned"?"selected":""}>Unsigned</option>
           </select>
         </td>
-
         <td>
-          <button class="deleteBtn"
-            data-id="${d.id}"
-            data-action="delete">
-            Delete
-          </button>
+          <button class="deleteBtn" data-id="${d.id}" data-action="delete">Delete</button>
         </td>
-
       </tr>
     `;
   });
 }
 
-/* =========================
-   EVENTS
-========================= */
+/* ========================= TMDB ACTOR SEARCH (Improved) ========================= */
+async function showActorInfo(name, role_type = "", known_for = "") {
+  const modal = document.getElementById("actorModal");
+  const modalName = document.getElementById("modalName");
+  const modalContent = document.getElementById("modalContent");
+
+  modalName.textContent = name + (role_type ? ` (${role_type})` : '');
+  modalContent.innerHTML = "Searching TMDB...";
+  modal.style.display = "block";
+
+  // Build better search query using role_type and known_for
+  let query = name;
+  if (role_type) query += ` ${role_type}`;
+  if (known_for) query += ` ${known_for}`;
+
+  try {
+    const res = await fetch(
+      `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`
+    );
+    const json = await res.json();
+
+    if (!json.results || json.results.length === 0) {
+      modalContent.innerHTML = `<p>No results found for <strong>${name}</strong>.</p>`;
+      return;
+    }
+
+    const person = json.results[0]; // Best match with improved query
+
+    const detailRes = await fetch(
+      `https://api.themoviedb.org/3/person/${person.id}?api_key=${TMDB_API_KEY}&append_to_response=combined_credits`
+    );
+    const details = await detailRes.json();
+
+    let html = `<p><strong>Department:</strong> ${person.known_for_department || 'Acting'}</p>`;
+
+    if (details.biography) {
+      html += `<p><strong>Biography:</strong><br>${details.biography.substring(0, 400)}...</p>`;
+    }
+
+    if (details.combined_credits?.cast?.length > 0) {
+      const top = details.combined_credits.cast.slice(0, 7);
+      html += `<p><strong>Notable Credits:</strong></p><ul>`;
+      top.forEach(c => {
+        const title = c.title || c.name || "Unknown";
+        html += `<li>${title} ${c.character ? `— ${c.character}` : ''}</li>`;
+      });
+      html += `</ul>`;
+    }
+
+    modalContent.innerHTML = html;
+
+  } catch (err) {
+    console.error(err);
+    modalContent.innerHTML = `<p style="color:red;">Failed to fetch data from TMDB.</p>`;
+  }
+}
+
+function closeModal() {
+  document.getElementById("actorModal").style.display = "none";
+}
+
+/* ========================= EVENT LISTENERS ========================= */
 document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("actor")) {
+    const name = e.target.dataset.name;
+    const role = e.target.dataset.role;
+    const known = e.target.dataset.known;
+    if (name) showActorInfo(name, role, known);
+  }
 
   const id = e.target.dataset.id;
   const action = e.target.dataset.action;
-
   if (action === "delete") deleteEntry(id);
-
-  if (e.target.classList.contains("actor")) {
-    alert(
-      `Actor: ${e.target.dataset.name}`
-    );
-  }
 });
 
 document.addEventListener("change", (e) => {
-
   const id = e.target.dataset.id;
   const action = e.target.dataset.action;
 
@@ -299,15 +305,12 @@ document.addEventListener("change", (e) => {
   if (action === "date") updateDate(id, e.target.value);
 });
 
-/* =========================
-   STATS + CHART
-========================= */
+/* ========================= STATS & CHART ========================= */
 function updateStats() {
-
-  const pending = data.filter(d => (d.status||"pending")==="pending").length;
-  const received = data.filter(d => d.status==="received").length;
-  const rts = data.filter(d => d.status==="rts").length;
-  const unsigned = data.filter(d => d.status==="unsigned").length;
+  const pending = data.filter(d => (d.status||"pending") === "pending").length;
+  const received = data.filter(d => d.status === "received").length;
+  const rts = data.filter(d => d.status === "rts").length;
+  const unsigned = data.filter(d => d.status === "unsigned").length;
 
   document.getElementById("sumPending").innerText = pending;
   document.getElementById("sumReceived").innerText = received;
@@ -315,27 +318,18 @@ function updateStats() {
   document.getElementById("sumUnsigned").innerText = unsigned;
 
   const ctx = document.getElementById("pieChart");
-
   if (chart) chart.destroy();
-
   chart = new Chart(ctx, {
     type: "pie",
     data: {
       labels: ["Received", "Pending", "RTS", "Unsigned"],
       datasets: [{
         data: [received, pending, rts, unsigned],
-        backgroundColor: [
-          "#1f8f3a",
-          "#ffea7a",
-          "#b3261e",
-          "#1e5bb3"
-        ]
+        backgroundColor: ["#1f8f3a", "#ffea7a", "#b3261e", "#1e5bb3"]
       }]
     }
   });
 }
-
 </script>
-
 </body>
 </html>
