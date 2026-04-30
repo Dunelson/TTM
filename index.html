@@ -70,15 +70,16 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 <!-- Sort Control -->
 <div style="margin: 12px 0 8px 0;">
   <strong>Sort by:</strong> 
-  <select id="sortBy" onchange="render()">
+  <select id="sortBy" onchange="sortAndRender()">
     <option value="name">Name (A-Z)</option>
     <option value="role">Role Type</option>
     <option value="known_for">Known For</option>
-    <option value="date_sent">Date Sent (Newest First)</option>
+    <option value="date_sent">Date Sent (Newest)</option>
+    <option value="date_received">Received Date (Newest)</option>
   </select>
 </div>
 
-<input id="search" placeholder="Search..." oninput="render()">
+<input id="search" placeholder="Search..." oninput="sortAndRender()">
 
 <hr>
 
@@ -111,22 +112,21 @@ const sb = window.supabase.createClient(
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
-const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
+const TMDB_API_KEY = "YOUR_TMDB_API_KEY_HERE";
 
 let data = [];
 let chart;
-let currentSort = "name";   // Default sort
 
-/* Load Data */
+/* ========================= LOAD DATA ========================= */
 async function loadData() {
   const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
-  render();                    // Force render after data loads
+  sortAndRender();        // Use this instead of render()
   updateStats();
 }
 loadData();
 
-/* Add Entry */
+/* ========================= ADD ENTRY ========================= */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const role_type = document.getElementById("role_type").value;
@@ -141,7 +141,7 @@ async function addEntry() {
   }]);
 
   clearForm();
-  loadData();   // This ensures fresh data + re-sort
+  loadData();
 }
 
 function clearForm() {
@@ -152,7 +152,7 @@ function clearForm() {
   document.getElementById("dateSent").value = "";
 }
 
-/* Update Functions */
+/* ========================= UPDATE FUNCTIONS ========================= */
 async function updateRoleType(id, value) {
   await sb.from("Tracking").update({ role_type: value }).eq("id", id);
   loadData();
@@ -178,10 +178,10 @@ async function deleteEntry(id) {
   }
 }
 
-/* Main Render Function with Sorting */
-function render() {
-  currentSort = document.getElementById("sortBy").value || "name";
+/* ========================= SORT & RENDER ========================= */
+function sortAndRender() {
   const search = (document.getElementById("search").value || "").toLowerCase().trim();
+  const sortBy = document.getElementById("sortBy").value || "name";
 
   let filtered = data.filter(d =>
     (d.name || "").toLowerCase().includes(search) ||
@@ -190,9 +190,9 @@ function render() {
     (d.address || "").toLowerCase().includes(search)
   );
 
-  // Sorting
+  // Sorting Logic
   filtered.sort((a, b) => {
-    switch(currentSort) {
+    switch(sortBy) {
       case "name":
         return (a.name || "").localeCompare(b.name || "");
       case "role":
@@ -200,7 +200,9 @@ function render() {
       case "known_for":
         return (a.known_for || "").localeCompare(b.known_for || "");
       case "date_sent":
-        return (b.date_sent || "") > (a.date_sent || "") ? 1 : -1;
+        return (b.date_sent || "1900-01-01").localeCompare(a.date_sent || "1900-01-01");
+      case "date_received":
+        return (b.date_received || "1900-01-01").localeCompare(a.date_received || "1900-01-01");
       default:
         return 0;
     }
@@ -249,7 +251,7 @@ function render() {
   });
 }
 
-/* Actor Modal */
+/* ========================= ACTOR MODAL ========================= */
 async function showActorInfo(name, role_type = "", known_for = "") {
   const modal = document.getElementById("actorModal");
   const modalName = document.getElementById("modalName");
@@ -281,7 +283,9 @@ async function showActorInfo(name, role_type = "", known_for = "") {
 
     let html = `<p><strong>Department:</strong> ${person.known_for_department || 'Acting'}</p>`;
 
-    if (details.biography) html += `<p><strong>Bio:</strong><br>${details.biography.substring(0, 400)}...</p>`;
+    if (details.biography) {
+      html += `<p><strong>Bio:</strong><br>${details.biography.substring(0, 400)}...</p>`;
+    }
 
     if (details.combined_credits?.cast?.length) {
       html += `<p><strong>Notable Roles:</strong></p><ul>`;
@@ -303,7 +307,7 @@ function closeModal() {
   document.getElementById("actorModal").style.display = "none";
 }
 
-/* Events */
+/* ========================= EVENTS ========================= */
 document.addEventListener("click", (e) => {
   if (e.target.classList.contains("actor")) {
     const name = e.target.dataset.name;
@@ -324,7 +328,7 @@ document.addEventListener("change", (e) => {
   if (action === "date") updateDate(id, e.target.value);
 });
 
-/* Stats & Chart */
+/* ========================= STATS ========================= */
 function updateStats() {
   const pending = data.filter(d => (d.status||"pending") === "pending").length;
   const received = data.filter(d => d.status === "received").length;
