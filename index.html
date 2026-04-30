@@ -3,63 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM CRM</title>
+<title>TTM Tracker</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
   font-family: Arial;
   margin: 0;
-  padding: 12px;
+  padding: 15px;
   background: #f4f6f8;
 }
 
-h2 { margin: 0 0 10px; }
+h2 { margin-bottom: 10px; }
 
-/* DASHBOARD */
-.dashboard {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.card {
-  background: white;
-  padding: 10px;
-  border-radius: 10px;
-  text-align: center;
-  font-size: 14px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
-
-/* INPUT */
 input, button {
   width: 100%;
-  padding: 12px;
+  padding: 10px;
   margin-top: 6px;
-  font-size: 16px;
-  box-sizing: border-box;
 }
 
 button {
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
 }
 
 .green { background: #28a745; color: white; }
 .red { background: #dc3545; color: white; }
 
-/* SEARCH */
-.search {
-  margin-top: 10px;
-  font-size: 16px;
-}
-
-/* TABLE */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -69,7 +41,7 @@ table {
 
 th, td {
   border: 1px solid #ddd;
-  padding: 10px;
+  padding: 8px;
   font-size: 14px;
 }
 
@@ -78,161 +50,125 @@ th {
   color: white;
 }
 
-.pending { background: #fff3cd; }
-.signed { background: #d4edda; }
-.not-signed { background: #f8d7da; }
-
-/* PIE */
-canvas {
-  background: white;
-  border-radius: 10px;
-  margin-top: 10px;
-  max-height: 220px;
-}
-
-/* MOBILE CRM MODE */
-@media (max-width: 768px) {
-
-  .dashboard {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  table, thead, tbody, th, td, tr {
-    display: block;
-    width: 100%;
-  }
-
-  thead {
-    display: none;
-  }
-
-  tr {
-    background: white;
-    margin-bottom: 10px;
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-  }
-
-  td {
-    border: none;
-    padding: 6px 0;
-  }
-
-  td::before {
-    content: attr(data-label);
-    font-weight: bold;
-    display: block;
-    font-size: 12px;
-    color: #666;
-  }
-}
-
-/* PROFILE MODAL */
+/* modal */
 .modal {
-  display: none;
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5);
+  display:none;
+  position:fixed;
+  top:0;left:0;
+  width:100%;height:100%;
+  background:rgba(0,0,0,0.5);
 }
 
 .modal-content {
-  background: white;
-  margin: 10% auto;
-  padding: 20px;
-  width: 90%;
-  max-width: 500px;
-  border-radius: 10px;
+  background:white;
+  margin:10% auto;
+  padding:15px;
+  width:90%;
+  max-width:500px;
+  border-radius:8px;
 }
 </style>
 </head>
 
 <body>
 
-<h2>TTM CRM Tracker</h2>
+<h2>TTM Tracker</h2>
 
-<!-- DASHBOARD -->
-<div class="dashboard">
-  <div class="card"><b id="total">0</b><br>Total</div>
-  <div class="card"><b id="pending">0</b><br>Pending</div>
-  <div class="card"><b id="signed">0</b><br>Signed</div>
-  <div class="card"><b id="notSigned">0</b><br>Not Signed</div>
-</div>
-
-<!-- ENTRY -->
 <input id="name" placeholder="Name">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
 
 <button class="green" onclick="addEntry()">Save Entry</button>
 
-<!-- SEARCH -->
-<input class="search" id="search" placeholder="Search name or address..." oninput="render()">
+<hr>
 
-<!-- PIE -->
-<canvas id="statusChart" height="120"></canvas>
-
-<!-- TABLE -->
 <table>
 <thead>
 <tr>
   <th>Name</th>
   <th>Address</th>
   <th>Sent</th>
-  <th>Received</th>
   <th>Status</th>
   <th>Actions</th>
 </tr>
 </thead>
-
 <tbody id="table"></tbody>
 </table>
 
-<!-- PROFILE -->
-<div id="modal" class="modal" onclick="closeModal()">
+<!-- ACTOR MODAL -->
+<div id="actorModal" class="modal" onclick="closeActor()">
   <div class="modal-content" onclick="event.stopPropagation()">
-    <h3 id="pName"></h3>
-    <div id="pStats"></div>
-    <hr>
-    <div id="pHistory"></div>
-    <button class="red" onclick="closeModal()">Close</button>
+    <h3 id="actorName"></h3>
+    <div id="movieList">Loading...</div>
+    <button class="red" onclick="closeActor()">Close</button>
   </div>
 </div>
 
 <script>
+
+/* =========================
+   SUPABASE
+========================= */
 const sb = window.supabase.createClient(
   "https://aeezsewfoozizduzuidv.supabase.co",
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
-let data = [];
-let chart;
+/* =========================
+   TMDB CONFIG
+========================= */
+const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
+const TMDB_READ_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJkNDY1NmE4OTM2NThlZDcxMWJjYWRlZjE4ZGMyMzMwMCIsIm5iZiI6MTc3NzU1MjU3Ni43NTksInN1YiI6IjY5ZjM0Y2MwMmQxYjkxYWM1ZTg3YjBlNCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.Cta30ot0SpEJPn74W1yVbbV-vOPawrWMQSUejjGlN0c";
 
-/* LOAD */
+const actorCache = {};
+
+/* =========================
+   LOAD DATA
+========================= */
+let data = [];
+
 async function loadData() {
-  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
+  const { data: rows, error } = await sb
+    .from("Tracking")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Load error:", error);
+    return;
+  }
+
   data = rows || [];
   render();
-  stats();
-  pie();
 }
 
-/* ADD */
+loadData();
+
+/* =========================
+   ADD ENTRY
+========================= */
 async function addEntry() {
-  const name = document.getElementById("name").value;
-  const address = document.getElementById("address").value;
+  const name = document.getElementById("name").value.trim();
+  const address = document.getElementById("address").value.trim();
   const date_sent = document.getElementById("dateSent").value;
 
-  if (!name || !address) return alert("Missing fields");
+  if (!name || !address) {
+    alert("Missing fields");
+    return;
+  }
 
-  await sb.from("Tracking").insert([{
+  const { error } = await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
-    returned: false,
-    signature_status: "pending"
+    returned: false
   }]);
+
+  if (error) {
+    console.error("Insert error:", error);
+    alert(error.message);
+    return;
+  }
 
   document.getElementById("name").value = "";
   document.getElementById("address").value = "";
@@ -241,124 +177,116 @@ async function addEntry() {
   loadData();
 }
 
-/* STATUS */
-async function setStatus(id, status) {
-  await sb.from("Tracking")
-    .update({ signature_status: status, returned: true })
+/* =========================
+   SAFE DELETE
+========================= */
+async function deleteEntry(id) {
+  const { error } = await sb
+    .from("Tracking")
+    .delete()
     .eq("id", id);
 
+  if (error) {
+    console.error("Delete error:", error);
+    alert(error.message);
+    return;
+  }
+
   loadData();
 }
 
-/* DELETE */
-async function remove(id) {
-  if (!confirm("Delete?")) return;
-  await sb.from("Tracking").delete().eq("id", id);
-  loadData();
-}
+/* =========================
+   ACTOR LOOKUP
+========================= */
+async function openActor(name) {
+  document.getElementById("actorModal").style.display = "block";
+  document.getElementById("actorName").innerText = name;
+  document.getElementById("movieList").innerText = "Loading...";
 
-/* STATS */
-function stats() {
-  document.getElementById("total").innerText = data.length;
-  document.getElementById("pending").innerText = data.filter(d => !d.returned).length;
-  document.getElementById("signed").innerText = data.filter(d => d.signature_status === "signed").length;
-  document.getElementById("notSigned").innerText = data.filter(d => d.signature_status === "not_signed").length;
-}
+  if (actorCache[name]) {
+    renderMovies(actorCache[name]);
+    return;
+  }
 
-/* PIE */
-function pie() {
-  const s = data.filter(d => d.signature_status === "signed").length;
-  const n = data.filter(d => d.signature_status === "not_signed").length;
-  const p = data.filter(d => !d.returned).length;
+  try {
+    const search = await fetch(
+      `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`
+    );
 
-  if (chart) chart.destroy();
+    if (!search.ok) throw new Error("TMDB search failed");
 
-  chart = new Chart(document.getElementById("statusChart"), {
-    type: "pie",
-    data: {
-      labels: ["Pending", "Signed", "Not Signed"],
-      datasets: [{
-        data: [p, s, n],
-        backgroundColor: ["#ffc107", "#28a745", "#dc3545"]
-      }]
+    const searchData = await search.json();
+
+    if (!searchData.results.length) {
+      document.getElementById("movieList").innerText = "No actor found.";
+      return;
     }
-  });
+
+    const id = searchData.results[0].id;
+
+    const credits = await fetch(
+      `https://api.themoviedb.org/3/person/${id}/movie_credits?api_key=${TMDB_API_KEY}`
+    );
+
+    if (!credits.ok) throw new Error("TMDB credits failed");
+
+    const creditsData = await credits.json();
+
+    actorCache[name] = creditsData.cast || [];
+
+    renderMovies(actorCache[name]);
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("movieList").innerText = "Error loading data.";
+  }
 }
 
-/* PROFILE VIEW */
-function openProfile(name) {
-  const records = data.filter(d => d.name === name);
+function renderMovies(movies) {
+  const html = movies
+    .sort((a,b) => (b.popularity || 0) - (a.popularity || 0))
+    .slice(0, 15)
+    .map(m => `🎬 ${m.title} (${m.release_date || "N/A"})`)
+    .join("<br>");
 
-  const signed = records.filter(r => r.signature_status === "signed").length;
-  const notSigned = records.filter(r => r.signature_status === "not_signed").length;
-
-  document.getElementById("pName").innerText = name;
-
-  document.getElementById("pStats").innerHTML = `
-    <b>Total:</b> ${records.length}<br>
-    <b>Signed:</b> ${signed}<br>
-    <b>Not Signed:</b> ${notSigned}
-  `;
-
-  document.getElementById("pHistory").innerHTML =
-    records.map(r =>
-      `<div>${r.date_sent || ""} → ${r.signature_status || "pending"}</div>`
-    ).join("");
-
-  document.getElementById("modal").style.display = "block";
+  document.getElementById("movieList").innerHTML = html || "No movies found.";
 }
 
-function closeModal() {
-  document.getElementById("modal").style.display = "none";
+function closeActor() {
+  document.getElementById("actorModal").style.display = "none";
 }
 
-/* RENDER */
+/* =========================
+   RENDER TABLE
+========================= */
 function render() {
-  const q = document.getElementById("search").value.toLowerCase();
   const t = document.getElementById("table");
   t.innerHTML = "";
 
-  data
-    .filter(d =>
-      (d.name||"").toLowerCase().includes(q) ||
-      (d.address||"").toLowerCase().includes(q)
-    )
-    .forEach(d => {
+  data.forEach(d => {
+    const safeName = encodeURIComponent(d.name || "");
 
-      const status =
-        d.signature_status === "signed" ? "Signed" :
-        d.signature_status === "not_signed" ? "Not Signed" :
-        "Pending";
+    t.innerHTML += `
+      <tr>
+        <td style="color:blue;cursor:pointer"
+            onclick="openActor(decodeURIComponent('${safeName}'))">
+          ${d.name || ""}
+        </td>
 
-      const cls =
-        status === "Signed" ? "signed" :
-        status === "Not Signed" ? "not-signed" :
-        "pending";
+        <td>${d.address || ""}</td>
+        <td>${d.date_sent || ""}</td>
+        <td>${d.returned ? "Returned" : "Pending"}</td>
 
-      const row = `
-        <tr class="${cls}">
-          <td onclick="openProfile('${d.name}')">${d.name||""}</td>
-          <td>${d.address||""}</td>
-          <td>${d.date_sent||""}</td>
-          <td>
-            <input type="date"
-              value="${d.date_received||""}"
-              onchange="sb.from('Tracking').update({date_received:this.value}).eq('id','${d.id}')">
-          </td>
-          <td>${status}</td>
-          <td>
-            <button class="green" onclick="setStatus('${d.id}','signed')">Signed</button>
-            <button class="red" onclick="setStatus('${d.id}','not_signed')">Not Signed</button>
-            <button class="red" onclick="remove('${d.id}')">Del</button>
-          </td>
-        </tr>
-      `;
-
-      t.innerHTML += row;
-    });
+        <td>
+          <button class="red" onclick="deleteEntry('${d.id}')">
+            Delete
+          </button>
+        </td>
+      </tr>
+    `;
+  });
 }
 
-loadData();
 </script>
 
 </body>
