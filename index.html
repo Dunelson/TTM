@@ -22,6 +22,28 @@ input {
   margin-top: 6px;
 }
 
+/* summary */
+.summary {
+  width: 70%;
+  margin: 10px auto;
+  background: white;
+  text-align: center;
+  border-collapse: collapse;
+}
+
+.summary td {
+  border: 1px solid #ddd;
+  padding: 6px;
+  font-size: 12px;
+}
+
+/* small chart */
+.chart-wrap {
+  max-width: 220px;
+  margin: 10px auto;
+}
+
+/* table */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -35,31 +57,37 @@ th, td {
   font-size: 13px;
 }
 
-/* ROW COLORS */
+/* row colors */
 .row-pending { background: #ffea7a; }
 .row-received { background: #c8f7d2; }
 .row-rts { background: #ffc7c7; }
 .row-unsigned { background: #cfe1ff; }
 
-/* compact inputs */
+/* actor fix */
+.actor {
+  color: blue;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* inputs */
 .dateInput {
   width: 120px;
   font-size: 12px;
   padding: 4px;
 }
 
-/* clickable actor */
-.actor {
-  color: blue;
-  cursor: pointer;
+select {
+  font-size: 12px;
+  padding: 4px;
 }
 
-/* delete button */
 .deleteBtn {
   background: #b3261e;
   color: white;
   padding: 4px;
   font-size: 12px;
+  border: none;
 }
 </style>
 </head>
@@ -68,6 +96,21 @@ th, td {
 
 <h2>TTM Tracker</h2>
 
+<!-- SUMMARY -->
+<table class="summary">
+  <tr>
+    <td>Pending</td><td id="sumPending">0</td>
+    <td>Received</td><td id="sumReceived">0</td>
+    <td>RTS</td><td id="sumRTS">0</td>
+    <td>Unsigned</td><td id="sumUnsigned">0</td>
+  </tr>
+</table>
+
+<div class="chart-wrap">
+  <canvas id="pieChart"></canvas>
+</div>
+
+<!-- INPUTS -->
 <input id="search" placeholder="Search..." oninput="render()">
 
 <input id="name" placeholder="Name">
@@ -115,6 +158,7 @@ async function loadData() {
 
   data = rows || [];
   render();
+  updateStats();
 }
 
 loadData();
@@ -146,7 +190,7 @@ async function addEntry() {
 }
 
 /* =========================
-   UPDATE STATUS
+   STATUS
 ========================= */
 async function updateStatus(id, status) {
 
@@ -164,35 +208,27 @@ async function updateStatus(id, status) {
 }
 
 /* =========================
-   UPDATE DATE (FIXED CLEAR SUPPORT)
+   DATE
 ========================= */
 async function updateDate(id, value) {
 
   await sb.from("Tracking")
-    .update({
-      date_received: value === "" ? null : value
-    })
+    .update({ date_received: value || null })
     .eq("id", id);
 
   loadData();
 }
 
 /* =========================
-   DELETE (RESTORED)
+   DELETE
 ========================= */
 async function deleteEntry(id) {
-
-  if (!confirm("Delete entry?")) return;
-
-  await sb.from("Tracking")
-    .delete()
-    .eq("id", id);
-
+  await sb.from("Tracking").delete().eq("id", id);
   loadData();
 }
 
 /* =========================
-   RENDER (SAFE EVENT MODEL)
+   RENDER
 ========================= */
 function render() {
 
@@ -226,7 +262,6 @@ function render() {
             value="${d.date_received || ""}"
             data-id="${d.id}"
             data-action="date">
-          <button data-id="${d.id}" data-action="clearDate">Clear</button>
         </td>
 
         <td>
@@ -252,42 +287,64 @@ function render() {
 }
 
 /* =========================
-   EVENT DELEGATION (FIXES ALL CLICK BUGS)
+   EVENTS (FIXED)
 ========================= */
 document.addEventListener("click", (e) => {
 
   const id = e.target.dataset.id;
   const action = e.target.dataset.action;
 
-  if (!action) return;
-
-  if (action === "delete") {
-    deleteEntry(id);
-  }
-
-  if (action === "clearDate") {
-    updateDate(id, null);
-  }
+  if (action === "delete") deleteEntry(id);
 
   if (e.target.classList.contains("actor")) {
     alert("Actor: " + e.target.dataset.name);
   }
 });
 
-/* status change */
 document.addEventListener("change", (e) => {
 
   const id = e.target.dataset.id;
   const action = e.target.dataset.action;
 
-  if (action === "status") {
-    updateStatus(id, e.target.value);
-  }
-
-  if (action === "date") {
-    updateDate(id, e.target.value);
-  }
+  if (action === "status") updateStatus(id, e.target.value);
+  if (action === "date") updateDate(id, e.target.value);
 });
+
+/* =========================
+   STATS + CHART (RESTORED)
+========================= */
+function updateStats() {
+
+  const pending = data.filter(d => (d.status||"pending")==="pending").length;
+  const received = data.filter(d => d.status==="received").length;
+  const rts = data.filter(d => d.status==="rts").length;
+  const unsigned = data.filter(d => d.status==="unsigned").length;
+
+  document.getElementById("sumPending").innerText = pending;
+  document.getElementById("sumReceived").innerText = received;
+  document.getElementById("sumRTS").innerText = rts;
+  document.getElementById("sumUnsigned").innerText = unsigned;
+
+  const ctx = document.getElementById("pieChart");
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels: ["Received", "Pending", "RTS", "Unsigned"],
+      datasets: [{
+        data: [received, pending, rts, unsigned],
+        backgroundColor: [
+          "#1f8f3a",
+          "#ffea7a",
+          "#b3261e",
+          "#1e5bb3"
+        ]
+      }]
+    }
+  });
+}
 
 </script>
 
