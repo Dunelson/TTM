@@ -6,6 +6,7 @@
 <title>TTM Tracker</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
@@ -31,6 +32,7 @@ button {
 
 .green { background: #28a745; color: white; }
 .red { background: #dc3545; color: white; }
+.blue { background: #007bff; color: white; }
 
 table {
   width: 100%;
@@ -67,12 +69,45 @@ th {
   max-width:500px;
   border-radius:8px;
 }
+
+/* stats */
+.stats {
+  display:flex;
+  gap:10px;
+  margin:10px 0;
+}
+
+.card {
+  flex:1;
+  background:white;
+  padding:10px;
+  border-radius:6px;
+  text-align:center;
+}
+
+/* chart */
+.chart-wrap {
+  max-width:300px;
+  margin:10px auto;
+}
 </style>
 </head>
 
 <body>
 
 <h2>TTM Tracker</h2>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="card" id="total">Total: 0</div>
+  <div class="card" id="pending">Pending: 0</div>
+  <div class="card" id="returned">Returned: 0</div>
+</div>
+
+<!-- CHART -->
+<div class="chart-wrap">
+  <canvas id="pieChart"></canvas>
+</div>
 
 <input id="name" placeholder="Name">
 <input id="address" placeholder="Address">
@@ -88,6 +123,7 @@ th {
   <th>Name</th>
   <th>Address</th>
   <th>Sent</th>
+  <th>Received</th>
   <th>Status</th>
   <th>Actions</th>
 </tr>
@@ -99,7 +135,7 @@ th {
 <div id="actorModal" class="modal" onclick="closeActor()">
   <div class="modal-content" onclick="event.stopPropagation()">
     <h3 id="actorName"></h3>
-    <div id="movieList">Loading...</div>
+    <div id="movieList"></div>
     <button class="red" onclick="closeActor()">Close</button>
   </div>
 </div>
@@ -115,31 +151,26 @@ const sb = window.supabase.createClient(
 );
 
 /* =========================
-   TMDB CONFIG
+   TMDB
 ========================= */
 const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
-const TMDB_READ_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJkNDY1NmE4OTM2NThlZDcxMWJjYWRlZjE4ZGMyMzMwMCIsIm5iZiI6MTc3NzU1MjU3Ni43NTksInN1YiI6IjY5ZjM0Y2MwMmQxYjkxYWM1ZTg3YjBlNCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.Cta30ot0SpEJPn74W1yVbbV-vOPawrWMQSUejjGlN0c";
-
 const actorCache = {};
 
 /* =========================
-   LOAD DATA
+   STATE
 ========================= */
 let data = [];
+let chart;
 
+/* =========================
+   LOAD
+========================= */
 async function loadData() {
-  const { data: rows, error } = await sb
-    .from("Tracking")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Load error:", error);
-    return;
-  }
-
+  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
   render();
+  updateStats();
+  updateChart();
 }
 
 loadData();
@@ -152,23 +183,15 @@ async function addEntry() {
   const address = document.getElementById("address").value.trim();
   const date_sent = document.getElementById("dateSent").value;
 
-  if (!name || !address) {
-    alert("Missing fields");
-    return;
-  }
+  if (!name || !address) return alert("Missing fields");
 
-  const { error } = await sb.from("Tracking").insert([{
+  await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
+    date_received: null,
     returned: false
   }]);
-
-  if (error) {
-    console.error("Insert error:", error);
-    alert(error.message);
-    return;
-  }
 
   document.getElementById("name").value = "";
   document.getElementById("address").value = "";
@@ -178,21 +201,91 @@ async function addEntry() {
 }
 
 /* =========================
-   SAFE DELETE
+   TOGGLE RETURNED
 ========================= */
-async function deleteEntry(id) {
-  const { error } = await sb
-    .from("Tracking")
-    .delete()
+async function toggle(id) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+
+  await sb.from("Tracking")
+    .update({ returned: !item.returned })
     .eq("id", id);
 
-  if (error) {
-    console.error("Delete error:", error);
-    alert(error.message);
-    return;
-  }
-
   loadData();
+}
+
+/* =========================
+   DELETE
+========================= */
+async function deleteEntry(id) {
+  await sb.from("Tracking").delete().eq("id", id);
+  loadData();
+}
+
+/* =========================
+   RENDER
+========================= */
+function render() {
+  const t = document.getElementById("table");
+  t.innerHTML = "";
+
+  data.forEach(d => {
+    t.innerHTML += `
+      <tr>
+        <td onclick="openActor('${d.name}')"
+            style="color:blue;cursor:pointer">
+          ${d.name || ""}
+        </td>
+        <td>${d.address || ""}</td>
+        <td>${d.date_sent || ""}</td>
+        <td>${d.date_received || "-"}</td>
+        <td>${d.returned ? "Returned" : "Pending"}</td>
+        <td>
+          <button class="blue" onclick="toggle('${d.id}')">
+            Toggle
+          </button>
+          <button class="red" onclick="deleteEntry('${d.id}')">
+            Delete
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+/* =========================
+   STATS
+========================= */
+function updateStats() {
+  const total = data.length;
+  const returned = data.filter(d => d.returned).length;
+  const pending = total - returned;
+
+  document.getElementById("total").innerText = `Total: ${total}`;
+  document.getElementById("pending").innerText = `Pending: ${pending}`;
+  document.getElementById("returned").innerText = `Returned: ${returned}`;
+}
+
+/* =========================
+   PIE CHART
+========================= */
+function updateChart() {
+  const returned = data.filter(d => d.returned).length;
+  const pending = data.length - returned;
+
+  const ctx = document.getElementById("pieChart");
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels: ["Returned", "Pending"],
+      datasets: [{
+        data: [returned, pending]
+      }]
+    }
+  });
 }
 
 /* =========================
@@ -208,83 +301,39 @@ async function openActor(name) {
     return;
   }
 
-  try {
-    const search = await fetch(
-      `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`
-    );
+  const res = await fetch(
+    `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`
+  );
 
-    if (!search.ok) throw new Error("TMDB search failed");
+  const json = await res.json();
 
-    const searchData = await search.json();
-
-    if (!searchData.results.length) {
-      document.getElementById("movieList").innerText = "No actor found.";
-      return;
-    }
-
-    const id = searchData.results[0].id;
-
-    const credits = await fetch(
-      `https://api.themoviedb.org/3/person/${id}/movie_credits?api_key=${TMDB_API_KEY}`
-    );
-
-    if (!credits.ok) throw new Error("TMDB credits failed");
-
-    const creditsData = await credits.json();
-
-    actorCache[name] = creditsData.cast || [];
-
-    renderMovies(actorCache[name]);
-
-  } catch (err) {
-    console.error(err);
-    document.getElementById("movieList").innerText = "Error loading data.";
+  if (!json.results.length) {
+    document.getElementById("movieList").innerText = "No actor found.";
+    return;
   }
+
+  const id = json.results[0].id;
+
+  const credits = await fetch(
+    `https://api.themoviedb.org/3/person/${id}/movie_credits?api_key=${TMDB_API_KEY}`
+  );
+
+  const cjson = await credits.json();
+
+  actorCache[name] = cjson.cast || [];
+
+  renderMovies(actorCache[name]);
 }
 
 function renderMovies(movies) {
-  const html = movies
-    .sort((a,b) => (b.popularity || 0) - (a.popularity || 0))
-    .slice(0, 15)
-    .map(m => `🎬 ${m.title} (${m.release_date || "N/A"})`)
-    .join("<br>");
-
-  document.getElementById("movieList").innerHTML = html || "No movies found.";
+  document.getElementById("movieList").innerHTML =
+    movies.slice(0, 15)
+      .map(m => `🎬 ${m.title} (${m.release_date || "N/A"})`)
+      .join("<br>");
 }
 
 function closeActor() {
   document.getElementById("actorModal").style.display = "none";
-}
-
-/* =========================
-   RENDER TABLE
-========================= */
-function render() {
-  const t = document.getElementById("table");
-  t.innerHTML = "";
-
-  data.forEach(d => {
-    const safeName = encodeURIComponent(d.name || "");
-
-    t.innerHTML += `
-      <tr>
-        <td style="color:blue;cursor:pointer"
-            onclick="openActor(decodeURIComponent('${safeName}'))">
-          ${d.name || ""}
-        </td>
-
-        <td>${d.address || ""}</td>
-        <td>${d.date_sent || ""}</td>
-        <td>${d.returned ? "Returned" : "Pending"}</td>
-
-        <td>
-          <button class="red" onclick="deleteEntry('${d.id}')">
-            Delete
-          </button>
-        </td>
-      </tr>
-    `;
-  });
 }
 
 </script>
