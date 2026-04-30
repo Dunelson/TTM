@@ -115,12 +115,13 @@ const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
 
 let data = [];
 let chart;
+let currentSort = "name";   // Default sort
 
 /* Load Data */
 async function loadData() {
   const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
-  render();           // Important: render immediately after loading
+  render();                    // Force render after data loads
   updateStats();
 }
 loadData();
@@ -140,7 +141,7 @@ async function addEntry() {
   }]);
 
   clearForm();
-  loadData();   // Reload + re-render with current sort
+  loadData();   // This ensures fresh data + re-sort
 }
 
 function clearForm() {
@@ -177,10 +178,10 @@ async function deleteEntry(id) {
   }
 }
 
-/* Render with Sorting */
+/* Main Render Function with Sorting */
 function render() {
+  currentSort = document.getElementById("sortBy").value || "name";
   const search = (document.getElementById("search").value || "").toLowerCase().trim();
-  const sortBy = document.getElementById("sortBy").value || "name";
 
   let filtered = data.filter(d =>
     (d.name || "").toLowerCase().includes(search) ||
@@ -189,9 +190,9 @@ function render() {
     (d.address || "").toLowerCase().includes(search)
   );
 
-  // Sorting Logic
+  // Sorting
   filtered.sort((a, b) => {
-    switch(sortBy) {
+    switch(currentSort) {
       case "name":
         return (a.name || "").localeCompare(b.name || "");
       case "role":
@@ -199,8 +200,7 @@ function render() {
       case "known_for":
         return (a.known_for || "").localeCompare(b.known_for || "");
       case "date_sent":
-        // Newest first
-        return (b.date_sent || "1900-01-01") > (a.date_sent || "1900-01-01") ? 1 : -1;
+        return (b.date_sent || "") > (a.date_sent || "") ? 1 : -1;
       default:
         return 0;
     }
@@ -249,7 +249,7 @@ function render() {
   });
 }
 
-/* Actor Info Modal */
+/* Actor Modal */
 async function showActorInfo(name, role_type = "", known_for = "") {
   const modal = document.getElementById("actorModal");
   const modalName = document.getElementById("modalName");
@@ -271,7 +271,7 @@ async function showActorInfo(name, role_type = "", known_for = "") {
     }
 
     if (!json.results || json.results.length === 0) {
-      modalContent.innerHTML = `<p>No results found.</p>`;
+      modalContent.innerHTML = `<p>No results found for "${name}".</p>`;
       return;
     }
 
@@ -281,9 +281,7 @@ async function showActorInfo(name, role_type = "", known_for = "") {
 
     let html = `<p><strong>Department:</strong> ${person.known_for_department || 'Acting'}</p>`;
 
-    if (details.biography) {
-      html += `<p><strong>Bio:</strong><br>${details.biography.substring(0, 400)}...</p>`;
-    }
+    if (details.biography) html += `<p><strong>Bio:</strong><br>${details.biography.substring(0, 400)}...</p>`;
 
     if (details.combined_credits?.cast?.length) {
       html += `<p><strong>Notable Roles:</strong></p><ul>`;
@@ -297,7 +295,7 @@ async function showActorInfo(name, role_type = "", known_for = "") {
 
   } catch (err) {
     console.error(err);
-    modalContent.innerHTML = `<p style="color:red;">Error loading data from TMDB.</p>`;
+    modalContent.innerHTML = `<p style="color:red;">Error loading from TMDB.</p>`;
   }
 }
 
