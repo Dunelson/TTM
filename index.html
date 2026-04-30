@@ -10,14 +10,15 @@
 body { font-family: Arial; margin: 0; padding: 15px; background: #f4f6f8; }
 input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; }
 
-.dateInput, .known-input { font-size: 12px; padding: 4px; }
+.dateInput { width: 130px; font-size: 12px; padding: 4px; }
+.known-input { width: 180px; font-size: 12px; padding: 4px; }
 
 .summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
 .summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
 .chart-wrap { max-width: 220px; margin: 10px auto; }
 
 table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
-th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; text-align: left; }
+th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 
 .row-pending { background: #ffea7a; }
 .row-received { background: #c8f7d2; }
@@ -27,17 +28,15 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; text-align: left
 .actor { color: blue; cursor: pointer; text-decoration: underline; }
 .actor:hover { color: darkblue; }
 
-.deleteBtn { background: #b3261e; color: white; padding: 4px 8px; font-size: 12px; border: none; cursor: pointer; }
+.deleteBtn {
+  background: #b3261e; color: white; padding: 4px 8px; font-size: 12px; border: none; cursor: pointer;
+}
 
 #actorModal {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: white; padding: 20px; border: 1px solid #666; box-shadow: 0 4px 25px rgba(0,0,0,0.4);
   max-width: 90%; max-height: 80vh; overflow-y: auto; z-index: 1000; border-radius: 8px;
 }
-.result-item {
-  padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;
-}
-.result-item:hover { background: #e6f0ff; }
 </style>
 </head>
 <body>
@@ -53,6 +52,7 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; text-align: left
 </table>
 <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
 
+<!-- Input Form -->
 <input id="name" placeholder="Name">
 <select id="role_type">
   <option value="">Role Type</option>
@@ -61,7 +61,7 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; text-align: left
   <option value="Producer">Producer</option>
   <option value="Composer">Composer</option>
 </select>
-<input id="known_for" placeholder="Known For">
+<input id="known_for" placeholder="Known For (helps with search)">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
 
@@ -87,9 +87,10 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; text-align: left
 <tbody id="table"></tbody>
 </table>
 
+<!-- Modal -->
 <div id="actorModal">
-  <h3 id="modalName">Select Correct Person</h3>
-  <div id="modalContent">Loading...</div>
+  <h3 id="modalName"></h3>
+  <div id="modalContent">Loading information...</div>
   <button onclick="closeModal()" style="margin-top:15px;">Close</button>
 </div>
 
@@ -103,9 +104,8 @@ const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";   // ← CHANGE THIS
 
 let data = [];
 let chart;
-let currentRowId = null;
 
-// ==================== LOAD ====================
+/* Load Data */
 async function loadData() {
   const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
@@ -114,7 +114,7 @@ async function loadData() {
 }
 loadData();
 
-// ==================== ADD ====================
+/* Add Entry */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const role_type = document.getElementById("role_type").value;
@@ -122,7 +122,7 @@ async function addEntry() {
   const address = document.getElementById("address").value.trim();
   const date_sent = document.getElementById("dateSent").value;
 
-  if (!name || !address) return alert("Name and Address required");
+  if (!name || !address) return alert("Name and Address are required");
 
   await sb.from("Tracking").insert([{ name, role_type, known_for, address, date_sent, status: "pending" }]);
   clearForm();
@@ -137,7 +137,7 @@ function clearForm() {
   document.getElementById("dateSent").value = "";
 }
 
-// ==================== UPDATES ====================
+/* Update Functions */
 async function updateRoleType(id, value) {
   await sb.from("Tracking").update({ role_type: value }).eq("id", id);
   loadData();
@@ -157,30 +157,32 @@ async function updateDate(id, value) {
   loadData();
 }
 async function deleteEntry(id) {
-  if (confirm("Delete?")) {
+  if (confirm("Delete this entry?")) {
     await sb.from("Tracking").delete().eq("id", id);
     loadData();
   }
 }
 
-// ==================== RENDER ====================
+/* Render Table */
 function render() {
-  const search = document.getElementById("search").value.toLowerCase().trim();
-  const filtered = data.filter(d => 
+  const search = (document.getElementById("search").value || "").toLowerCase().trim();
+  const filtered = data.filter(d =>
     (d.name || "").toLowerCase().includes(search) ||
     (d.role_type || "").toLowerCase().includes(search) ||
     (d.known_for || "").toLowerCase().includes(search) ||
     (d.address || "").toLowerCase().includes(search)
   );
 
-  const tbody = document.getElementById("table");
-  tbody.innerHTML = "";
+  const t = document.getElementById("table");
+  t.innerHTML = "";
 
   filtered.forEach(d => {
     const status = d.status || "pending";
-    tbody.innerHTML += `
+    t.innerHTML += `
       <tr class="row-${status}">
-        <td class="actor" data-id="${d.id}" data-name="${d.name}">${d.name || ""}</td>
+        <td class="actor" data-name="${d.name}" data-role="${d.role_type || ''}" data-known="${d.known_for || ''}">
+          ${d.name || ""}
+        </td>
         <td>
           <select onchange="updateRoleType('${d.id}', this.value)">
             <option value="">—</option>
@@ -190,10 +192,16 @@ function render() {
             <option value="Composer" ${d.role_type==="Composer"?"selected":""}>Composer</option>
           </select>
         </td>
-        <td><input type="text" class="known-input" value="${d.known_for || ''}" onchange="updateKnownFor('${d.id}', this.value)"></td>
+        <td>
+          <input type="text" class="known-input" value="${d.known_for || ''}" 
+                 onchange="updateKnownFor('${d.id}', this.value)">
+        </td>
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
-        <td><input class="dateInput" type="date" value="${d.date_received || ""}" data-id="${d.id}" data-action="date"></td>
+        <td>
+          <input class="dateInput" type="date" value="${d.date_received || ""}" 
+                 data-id="${d.id}" data-action="date">
+        </td>
         <td>
           <select data-id="${d.id}" data-action="status">
             <option value="pending" ${status==="pending"?"selected":""}>Pending</option>
@@ -202,99 +210,96 @@ function render() {
             <option value="unsigned" ${status==="unsigned"?"selected":""}>Unsigned</option>
           </select>
         </td>
-        <td><button class="deleteBtn" data-id="${d.id}" data-action="delete">Delete</button></td>
+        <td>
+          <button class="deleteBtn" data-id="${d.id}" data-action="delete">Delete</button>
+        </td>
       </tr>
     `;
   });
 }
 
-// ==================== TMDB SEARCH ====================
-async function showActorInfo(rowId, name) {
-  currentRowId = rowId;
-  document.getElementById("modalName").textContent = `Matches for: ${name}`;
-  document.getElementById("modalContent").innerHTML = "Searching TMDB...";
-  document.getElementById("actorModal").style.display = "block";
+/* Simple Actor Info Lookup */
+async function showActorInfo(name, role_type = "", known_for = "") {
+  const modal = document.getElementById("actorModal");
+  const modalName = document.getElementById("modalName");
+  const modalContent = document.getElementById("modalContent");
 
-  console.log("Searching for:", name);
+  modalName.textContent = name;
+  modalContent.innerHTML = "Searching TMDB...";
+  modal.style.display = "block";
+
+  // Build better search query
+  let query = name;
+  if (role_type || known_for) {
+    query = [name, role_type, known_for].filter(Boolean).join(" ");
+  }
 
   try {
-    const response = await fetch(
-      `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`
+    const res = await fetch(
+      `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`
     );
-    const result = await response.json();
+    const json = await res.json();
 
-    console.log("TMDB Response:", result);
+    if (!json.results || json.results.length === 0) {
+      // Fallback to name only
+      const fallbackRes = await fetch(
+        `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`
+      );
+      const fallbackJson = await fallbackRes.json();
 
-    if (!result.results || result.results.length === 0) {
-      document.getElementById("modalContent").innerHTML = `<p>No results found for "${name}"</p>`;
-      return;
+      if (!fallbackJson.results || fallbackJson.results.length === 0) {
+        modalContent.innerHTML = `<p>No information found for <strong>${name}</strong>.</p>`;
+        return;
+      }
+      json.results = fallbackJson.results;
     }
 
-    let html = "";
-    result.results.slice(0, 6).forEach(person => {
-      const dept = person.known_for_department || "Unknown";
-      html += `
-        <div class="result-item" onclick="selectAndSave('${person.id}', '${person.name.replace(/'/g, "\\'")}', '${dept}')">
-          <strong>${person.name}</strong> — ${dept}
-        </div>`;
-    });
+    const person = json.results[0]; // Take best match
 
-    document.getElementById("modalContent").innerHTML = html;
+    const detailRes = await fetch(
+      `https://api.themoviedb.org/3/person/${person.id}?api_key=${TMDB_API_KEY}&append_to_response=combined_credits`
+    );
+    const details = await detailRes.json();
 
-  } catch (err) {
-    console.error("TMDB Error:", err);
-    document.getElementById("modalContent").innerHTML = `<p style="color:red;">Error: Could not connect to TMDB.<br>Check your API key.</p>`;
-  }
-}
+    let html = `<p><strong>Known For:</strong> ${person.known_for_department || 'Acting'}</p>`;
 
-// ==================== SAVE SELECTED PERSON ====================
-async function selectAndSave(tmdbId, correctName, department) {
-  console.log("Attempting to save:", { tmdbId, correctName, department, rowId: currentRowId });
+    if (details.biography) {
+      html += `<p><strong>Biography:</strong><br>${details.biography.substring(0, 400)}...</p>`;
+    }
 
-  if (!currentRowId) {
-    alert("Error: No row selected");
-    return;
-  }
+    if (details.combined_credits?.cast?.length) {
+      html += `<p><strong>Notable Roles:</strong></p><ul>`;
+      details.combined_credits.cast.slice(0, 8).forEach(c => {
+        const title = c.title || c.name || "Unknown";
+        html += `<li>${title} ${c.character ? `(${c.character})` : ''}</li>`;
+      });
+      html += `</ul>`;
+    }
 
-  const roleType = (department === "Acting") ? "Actor" : 
-                   (department === "Directing") ? "Director" : department;
-
-  try {
-    const { error } = await sb.from("Tracking").update({
-      name: correctName,
-      role_type: roleType,
-      tmdb_id: tmdbId
-    }).eq("id", currentRowId);
-
-    if (error) throw error;
-
-    console.log("Save successful!");
-    alert(`✅ Saved successfully: ${correctName}`);
-    closeModal();
-    loadData();
+    modalContent.innerHTML = html;
 
   } catch (err) {
-    console.error("Save failed:", err);
-    alert("❌ Failed to save to database. Check console for details.");
+    console.error(err);
+    modalContent.innerHTML = `<p style="color:red;">Error fetching data from TMDB.<br>Please check your API key.</p>`;
   }
 }
 
 function closeModal() {
   document.getElementById("actorModal").style.display = "none";
-  currentRowId = null;
 }
 
-// ==================== EVENTS ====================
+/* Events */
 document.addEventListener("click", (e) => {
   if (e.target.classList.contains("actor")) {
-    const rowId = e.target.dataset.id;
     const name = e.target.dataset.name;
-    if (rowId && name) showActorInfo(rowId, name);
+    const role = e.target.dataset.role;
+    const known = e.target.dataset.known;
+    if (name) showActorInfo(name, role, known);
   }
 
-  if (e.target.dataset.action === "delete") {
-    deleteEntry(e.target.dataset.id);
-  }
+  const id = e.target.dataset.id;
+  const action = e.target.dataset.action;
+  if (action === "delete") deleteEntry(id);
 });
 
 document.addEventListener("change", (e) => {
@@ -304,7 +309,7 @@ document.addEventListener("change", (e) => {
   if (action === "date") updateDate(id, e.target.value);
 });
 
-// ==================== STATS ====================
+/* Stats + Chart */
 function updateStats() {
   const pending = data.filter(d => (d.status||"pending") === "pending").length;
   const received = data.filter(d => d.status === "received").length;
@@ -322,7 +327,10 @@ function updateStats() {
     type: "pie",
     data: {
       labels: ["Received", "Pending", "RTS", "Unsigned"],
-      datasets: [{ data: [received, pending, rts, unsigned], backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] }]
+      datasets: [{
+        data: [received, pending, rts, unsigned],
+        backgroundColor: ["#1f8f3a", "#ffea7a", "#b3261e", "#1e5bb3"]
+      }]
     }
   });
 }
