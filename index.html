@@ -11,7 +11,7 @@ body { font-family: Arial; margin: 0; padding: 15px; background: #f4f6f8; }
 input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; }
 
 .dateInput { width: 130px; font-size: 12px; padding: 4px; }
-.role-input, .known-input { width: 160px; font-size: 12px; padding: 3px; }
+.known-input { width: 180px; font-size: 12px; padding: 3px; }
 
 .summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
 .summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
@@ -55,14 +55,25 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 
 <!-- INPUT FORM -->
 <input id="name" placeholder="Name">
-<input id="role_type" placeholder="Role Type (Actor / Director / Producer)">
-<input id="known_for" placeholder="Known For (Biggest Role/Project)">
+
+<select id="role_type">
+  <option value="">Role Type (optional)</option>
+  <option value="Actor">Actor</option>
+  <option value="Director">Director</option>
+  <option value="Producer">Producer</option>
+  <option value="Writer">Writer</option>
+  <option value="Executive Producer">Executive Producer</option>
+  <option value="Cinematographer">Cinematographer</option>
+  <option value="Composer">Composer</option>
+</select>
+
+<input id="known_for" placeholder="Known For (e.g. John Wick, The Batman)">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
 
 <button onclick="addEntry()" style="background:#28a745;color:white;width:100%;">Save Entry</button>
 
-<input id="search" placeholder="Search by name, role, or project..." oninput="render()" style="margin-top:12px;">
+<input id="search" placeholder="Search..." oninput="render()" style="margin-top:12px;">
 
 <hr>
 
@@ -95,12 +106,12 @@ const sb = window.supabase.createClient(
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
-const TMDB_API_KEY = "YOUR_TMDB_API_KEY_HERE";   // ←←← Change this
+const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";   // ← Replace with your actual key
 
 let data = [];
 let chart;
 
-/* ========================= LOAD DATA ========================= */
+/* ========================= LOAD ========================= */
 async function loadData() {
   const { data: rows } = await sb.from("Tracking")
     .select("*")
@@ -111,7 +122,7 @@ async function loadData() {
 }
 loadData();
 
-/* ========================= ADD NEW ENTRY ========================= */
+/* ========================= ADD ENTRY ========================= */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const role_type = document.getElementById("role_type").value.trim();
@@ -122,15 +133,9 @@ async function addEntry() {
   if (!name || !address) return alert("Name and Address are required");
 
   await sb.from("Tracking").insert([{
-    name,
-    role_type,
-    known_for,
-    address,
-    date_sent,
-    status: "pending"
+    name, role_type, known_for, address, date_sent, status: "pending"
   }]);
 
-  // Clear inputs
   document.getElementById("name").value = "";
   document.getElementById("role_type").value = "";
   document.getElementById("known_for").value = "";
@@ -140,7 +145,7 @@ async function addEntry() {
   loadData();
 }
 
-/* ========================= UPDATE FUNCTIONS ========================= */
+/* ========================= UPDATES ========================= */
 async function updateRoleType(id, value) {
   await sb.from("Tracking").update({ role_type: value }).eq("id", id);
   loadData();
@@ -170,15 +175,15 @@ async function deleteEntry(id) {
   }
 }
 
-/* ========================= RENDER TABLE ========================= */
+/* ========================= RENDER ========================= */
 function render() {
   const search = (document.getElementById("search").value || "").toLowerCase().trim();
 
   const filtered = data.filter(d =>
     (d.name || "").toLowerCase().includes(search) ||
-    (d.address || "").toLowerCase().includes(search) ||
     (d.role_type || "").toLowerCase().includes(search) ||
-    (d.known_for || "").toLowerCase().includes(search)
+    (d.known_for || "").toLowerCase().includes(search) ||
+    (d.address || "").toLowerCase().includes(search)
   );
 
   const t = document.getElementById("table");
@@ -186,19 +191,25 @@ function render() {
 
   filtered.forEach(d => {
     const status = d.status || "pending";
-
     t.innerHTML += `
       <tr class="row-${status}">
         <td class="actor" data-name="${d.name}" data-role="${d.role_type || ''}" data-known="${d.known_for || ''}">
           ${d.name || ""}
         </td>
         <td>
-          <input type="text" class="role-input" value="${d.role_type || ''}" 
-                 data-id="${d.id}" onchange="updateRoleType(this.dataset.id, this.value)">
+          <select onchange="updateRoleType('${d.id}', this.value)">
+            <option value="">—</option>
+            <option value="Actor" ${d.role_type==="Actor"?"selected":""}>Actor</option>
+            <option value="Director" ${d.role_type==="Director"?"selected":""}>Director</option>
+            <option value="Producer" ${d.role_type==="Producer"?"selected":""}>Producer</option>
+            <option value="Writer" ${d.role_type==="Writer"?"selected":""}>Writer</option>
+            <option value="Executive Producer" ${d.role_type==="Executive Producer"?"selected":""}>Exec Producer</option>
+            <option value="Cinematographer" ${d.role_type==="Cinematographer"?"selected":""}>Cinematographer</option>
+          </select>
         </td>
         <td>
           <input type="text" class="known-input" value="${d.known_for || ''}" 
-                 data-id="${d.id}" onchange="updateKnownFor(this.dataset.id, this.value)">
+                 onchange="updateKnownFor('${d.id}', this.value)">
         </td>
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
@@ -222,7 +233,7 @@ function render() {
   });
 }
 
-/* ========================= TMDB ACTOR SEARCH (Improved) ========================= */
+/* ========================= TMDB SEARCH (Improved) ========================= */
 async function showActorInfo(name, role_type = "", known_for = "") {
   const modal = document.getElementById("actorModal");
   const modalName = document.getElementById("modalName");
@@ -232,23 +243,31 @@ async function showActorInfo(name, role_type = "", known_for = "") {
   modalContent.innerHTML = "Searching TMDB...";
   modal.style.display = "block";
 
-  // Build better search query using role_type and known_for
-  let query = name;
-  if (role_type) query += ` ${role_type}`;
-  if (known_for) query += ` ${known_for}`;
+  let query = name.trim();
+
+  // Try enhanced query first
+  if (role_type || known_for) {
+    query = [name, role_type, known_for].filter(Boolean).join(" ");
+  }
 
   try {
-    const res = await fetch(
-      `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`
-    );
-    const json = await res.json();
+    let res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`);
+
+    let json = await res.json();
+
+    // Fallback: search only by name if no results
+    if ((!json.results || json.results.length === 0) && query !== name) {
+      modalContent.innerHTML = "Trying simpler search...";
+      res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}&include_adult=false`);
+      json = await res.json();
+    }
 
     if (!json.results || json.results.length === 0) {
-      modalContent.innerHTML = `<p>No results found for <strong>${name}</strong>.</p>`;
+      modalContent.innerHTML = `<p><strong>No results found</strong> for "${name}".<br><br>Try checking the spelling or adding more details in the "Known For" field.</p>`;
       return;
     }
 
-    const person = json.results[0]; // Best match with improved query
+    const person = json.results[0];
 
     const detailRes = await fetch(
       `https://api.themoviedb.org/3/person/${person.id}?api_key=${TMDB_API_KEY}&append_to_response=combined_credits`
@@ -258,15 +277,15 @@ async function showActorInfo(name, role_type = "", known_for = "") {
     let html = `<p><strong>Department:</strong> ${person.known_for_department || 'Acting'}</p>`;
 
     if (details.biography) {
-      html += `<p><strong>Biography:</strong><br>${details.biography.substring(0, 400)}...</p>`;
+      html += `<p><strong>Bio:</strong><br>${details.biography.substring(0, 380)}...</p>`;
     }
 
     if (details.combined_credits?.cast?.length > 0) {
-      const top = details.combined_credits.cast.slice(0, 7);
+      const top = details.combined_credits.cast.slice(0, 8);
       html += `<p><strong>Notable Credits:</strong></p><ul>`;
       top.forEach(c => {
-        const title = c.title || c.name || "Unknown";
-        html += `<li>${title} ${c.character ? `— ${c.character}` : ''}</li>`;
+        const title = c.title || c.name || "?";
+        html += `<li>${title} ${c.character ? `(${c.character})` : ''}</li>`;
       });
       html += `</ul>`;
     }
@@ -275,7 +294,7 @@ async function showActorInfo(name, role_type = "", known_for = "") {
 
   } catch (err) {
     console.error(err);
-    modalContent.innerHTML = `<p style="color:red;">Failed to fetch data from TMDB.</p>`;
+    modalContent.innerHTML = `<p style="color:red;">Error connecting to TMDB. Check your API key and internet connection.</p>`;
   }
 }
 
@@ -283,7 +302,7 @@ function closeModal() {
   document.getElementById("actorModal").style.display = "none";
 }
 
-/* ========================= EVENT LISTENERS ========================= */
+/* ========================= EVENTS ========================= */
 document.addEventListener("click", (e) => {
   if (e.target.classList.contains("actor")) {
     const name = e.target.dataset.name;
@@ -305,7 +324,7 @@ document.addEventListener("change", (e) => {
   if (action === "date") updateDate(id, e.target.value);
 });
 
-/* ========================= STATS & CHART ========================= */
+/* ========================= STATS ========================= */
 function updateStats() {
   const pending = data.filter(d => (d.status||"pending") === "pending").length;
   const received = data.filter(d => d.status === "received").length;
