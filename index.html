@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,11 +35,12 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 #actorModal {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: white; padding: 20px; border: 1px solid #ccc; 
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 92%; max-height: 88vh; overflow-y: auto; z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 90%; max-height: 85vh; overflow-y: auto; z-index: 1000;
 }
 .result-item {
-  border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; border-radius: 6px;
+  border: 1px solid #ddd; padding: 12px; margin-bottom: 10px; border-radius: 6px; cursor: pointer;
 }
+.result-item:hover { background: #f0f8ff; }
 </style>
 </head>
 <body>
@@ -68,7 +67,7 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
   <option value="Composer">Composer</option>
 </select>
 
-<input id="known_for" placeholder="Known For (e.g. John Wick, Inception)">
+<input id="known_for" placeholder="Known For (e.g. John Wick)">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
 
@@ -107,13 +106,13 @@ const sb = window.supabase.createClient(
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
-const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";   // ←←← Replace with your real key
+const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";   // ← Replace with your key
 
 let data = [];
 let chart;
 let currentRowId = null;
 
-/* ========================= LOAD DATA ========================= */
+/* Load */
 async function loadData() {
   const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
@@ -122,7 +121,7 @@ async function loadData() {
 }
 loadData();
 
-/* ========================= ADD ENTRY ========================= */
+/* Add Entry */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const role_type = document.getElementById("role_type").value;
@@ -132,15 +131,7 @@ async function addEntry() {
 
   if (!name || !address) return alert("Name and Address are required");
 
-  await sb.from("Tracking").insert([{
-    name, 
-    role_type, 
-    known_for, 
-    address, 
-    date_sent, 
-    status: "pending"
-  }]);
-
+  await sb.from("Tracking").insert([{ name, role_type, known_for, address, date_sent, status: "pending" }]);
   clearForm();
   loadData();
 }
@@ -153,29 +144,25 @@ function clearForm() {
   document.getElementById("dateSent").value = "";
 }
 
-/* ========================= UPDATE FUNCTIONS ========================= */
+/* Updates */
 async function updateRoleType(id, value) {
   await sb.from("Tracking").update({ role_type: value }).eq("id", id);
   loadData();
 }
-
 async function updateKnownFor(id, value) {
   await sb.from("Tracking").update({ known_for: value }).eq("id", id);
   loadData();
 }
-
 async function updateStatus(id, status) {
   const update = { status };
   if (status === "received") update.date_received = new Date().toISOString().split("T")[0];
   await sb.from("Tracking").update(update).eq("id", id);
   loadData();
 }
-
 async function updateDate(id, value) {
   await sb.from("Tracking").update({ date_received: value || null }).eq("id", id);
   loadData();
 }
-
 async function deleteEntry(id) {
   if (confirm("Delete this entry?")) {
     await sb.from("Tracking").delete().eq("id", id);
@@ -183,11 +170,10 @@ async function deleteEntry(id) {
   }
 }
 
-/* ========================= RENDER TABLE ========================= */
+/* Render */
 function render() {
   const search = (document.getElementById("search").value || "").toLowerCase().trim();
-
-  const filtered = data.filter(d =>
+  const filtered = data.filter(d => 
     (d.name || "").toLowerCase().includes(search) ||
     (d.role_type || "").toLowerCase().includes(search) ||
     (d.known_for || "").toLowerCase().includes(search) ||
@@ -202,7 +188,7 @@ function render() {
     t.innerHTML += `
       <tr class="row-${status}">
         <td class="actor" data-id="${d.id}" data-name="${d.name}" data-role="${d.role_type || ''}" 
-            data-known="${d.known_for || ''}" data-tmdb="${d.tmdb_id || ''}">
+            data-known="${d.known_for || ''}">
           ${d.name || ""}
         </td>
         <td>
@@ -220,10 +206,7 @@ function render() {
         </td>
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
-        <td>
-          <input class="dateInput" type="date" value="${d.date_received || ""}"
-                 data-id="${d.id}" data-action="date">
-        </td>
+        <td><input class="dateInput" type="date" value="${d.date_received || ""}" data-id="${d.id}" data-action="date"></td>
         <td>
           <select data-id="${d.id}" data-action="status">
             <option value="pending" ${status==="pending"?"selected":""}>Pending</option>
@@ -232,54 +215,39 @@ function render() {
             <option value="unsigned" ${status==="unsigned"?"selected":""}>Unsigned</option>
           </select>
         </td>
-        <td>
-          <button class="deleteBtn" data-id="${d.id}" data-action="delete">Delete</button>
-        </td>
+        <td><button class="deleteBtn" data-id="${d.id}" data-action="delete">Delete</button></td>
       </tr>
     `;
   });
 }
 
-/* ========================= SHOW ACTOR MODAL ========================= */
-async function showActorInfo(rowId, name, role_type = "", known_for = "") {
+/* Show Modal */
+async function showActorInfo(rowId, name) {
   currentRowId = rowId;
   const modalContent = document.getElementById("modalContent");
-  const modalName = document.getElementById("modalName");
-
-  modalName.textContent = `Select correct person for "${name}"`;
-  modalContent.innerHTML = `<p>Searching TMDB for matches...</p>`;
+  document.getElementById("modalName").textContent = `Matches for "${name}"`;
+  modalContent.innerHTML = "Searching TMDB...";
   document.getElementById("actorModal").style.display = "block";
 
-  let query = [name, role_type, known_for].filter(Boolean).join(" ");
-
   try {
-    let res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`);
-    let json = await res.json();
-
-    // Fallback: search by name only
-    if (!json.results || json.results.length === 0) {
-      res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}&include_adult=false`);
-      json = await res.json();
-    }
+    const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}&include_adult=false`);
+    const json = await res.json();
 
     if (!json.results || json.results.length === 0) {
-      modalContent.innerHTML = `<p>No results found for "${name}".<br>Try improving the "Known For" field.</p>`;
+      modalContent.innerHTML = `<p>No results found for "${name}".</p>`;
       return;
     }
 
-    let html = `<p><strong>Choose the correct person:</strong></p>`;
+    let html = `<p><strong>Click on the correct person:</strong></p>`;
 
-    json.results.slice(0, 5).forEach(person => {
+    json.results.slice(0, 6).forEach(person => {
       const dept = person.known_for_department || "Unknown";
-      const knownFor = person.known_for ? person.known_for.slice(0, 3).map(k => k.title || k.name).join(", ") : "";
+      const known = person.known_for ? person.known_for.slice(0, 3).map(k => k.title || k.name).join(", ") : "";
 
       html += `
-        <div class="result-item">
+        <div class="result-item" onclick="selectPerson('${person.id}', '${person.name.replace(/'/g, "\\'")}', '${dept}')">
           <strong>${person.name}</strong> — ${dept}<br>
-          <small>${knownFor}</small><br><br>
-          <button onclick="selectPerson('${person.id}', '${person.name.replace(/'/g, "\\'")}', '${dept}')">
-            Select This Person
-          </button>
+          <small>${known}</small>
         </div>`;
     });
 
@@ -287,34 +255,36 @@ async function showActorInfo(rowId, name, role_type = "", known_for = "") {
 
   } catch (err) {
     console.error(err);
-    modalContent.innerHTML = `<p style="color:red;">Failed to connect to TMDB. Check your API key.</p>`;
+    modalContent.innerHTML = `<p style="color:red;">Error connecting to TMDB. Please check your API key.</p>`;
   }
 }
 
-/* ========================= SELECT & SAVE PERSON ========================= */
+/* Select and Save */
 async function selectPerson(tmdbId, correctName, department) {
   if (!currentRowId) return;
 
-  const roleType = (department === "Acting") ? "Actor" : 
-                   (department === "Directing") ? "Director" : 
-                   department;
+  const roleType = department === "Acting" ? "Actor" : 
+                   department === "Directing" ? "Director" : department;
 
   try {
-    const { error } = await sb.from("Tracking").update({
-      name: correctName,
-      role_type: roleType,
-      tmdb_id: tmdbId
-    }).eq("id", currentRowId);
+    const { error } = await sb
+      .from("Tracking")
+      .update({
+        name: correctName,
+        role_type: roleType,
+        tmdb_id: tmdbId
+      })
+      .eq("id", currentRowId);
 
     if (error) throw error;
 
-    alert(`✅ Successfully updated to: ${correctName}`);
+    alert(`✅ Saved: ${correctName}`);
     closeModal();
-    loadData();        // Refresh the table
+    loadData();
 
   } catch (err) {
     console.error(err);
-    alert("Failed to save changes. Please try again.");
+    alert("❌ Failed to save. Please try again.");
   }
 }
 
@@ -323,14 +293,12 @@ function closeModal() {
   currentRowId = null;
 }
 
-/* ========================= EVENTS ========================= */
+/* Events */
 document.addEventListener("click", (e) => {
   if (e.target.classList.contains("actor")) {
     const rowId = e.target.dataset.id;
     const name = e.target.dataset.name;
-    const role = e.target.dataset.role;
-    const known = e.target.dataset.known;
-    showActorInfo(rowId, name, role, known);
+    if (name) showActorInfo(rowId, name);
   }
 
   if (e.target.dataset.action === "delete") {
@@ -341,12 +309,11 @@ document.addEventListener("click", (e) => {
 document.addEventListener("change", (e) => {
   const id = e.target.dataset.id;
   const action = e.target.dataset.action;
-
   if (action === "status") updateStatus(id, e.target.value);
   if (action === "date") updateDate(id, e.target.value);
 });
 
-/* ========================= STATS & CHART ========================= */
+/* Stats */
 function updateStats() {
   const pending = data.filter(d => (d.status||"pending") === "pending").length;
   const received = data.filter(d => d.status === "received").length;
@@ -364,7 +331,7 @@ function updateStats() {
     type: "pie",
     data: {
       labels: ["Received", "Pending", "RTS", "Unsigned"],
-      datasets: [{
+      datasets: [{ 
         data: [received, pending, rts, unsigned],
         backgroundColor: ["#1f8f3a", "#ffea7a", "#b3261e", "#1e5bb3"]
       }]
