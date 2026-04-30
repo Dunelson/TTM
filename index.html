@@ -10,15 +10,14 @@
 body { font-family: Arial; margin: 0; padding: 15px; background: #f4f6f8; }
 input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; }
 
-.dateInput { width: 130px; font-size: 12px; padding: 4px; }
-.known-input { width: 180px; font-size: 12px; padding: 3px; }
+.dateInput, .known-input { font-size: 12px; padding: 4px; }
 
 .summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
 .summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
 .chart-wrap { max-width: 220px; margin: 10px auto; }
 
 table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
-th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
+th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; text-align: left; }
 
 .row-pending { background: #ffea7a; }
 .row-received { background: #c8f7d2; }
@@ -28,19 +27,17 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 .actor { color: blue; cursor: pointer; text-decoration: underline; }
 .actor:hover { color: darkblue; }
 
-.deleteBtn {
-  background: #b3261e; color: white; padding: 4px 8px; font-size: 12px; border: none; cursor: pointer;
-}
+.deleteBtn { background: #b3261e; color: white; padding: 4px 8px; font-size: 12px; border: none; cursor: pointer; }
 
 #actorModal {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  background: white; padding: 20px; border: 1px solid #ccc; 
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 90%; max-height: 85vh; overflow-y: auto; z-index: 1000;
+  background: white; padding: 20px; border: 1px solid #666; box-shadow: 0 4px 25px rgba(0,0,0,0.4);
+  max-width: 90%; max-height: 80vh; overflow-y: auto; z-index: 1000; border-radius: 8px;
 }
 .result-item {
-  border: 1px solid #ddd; padding: 12px; margin-bottom: 10px; border-radius: 6px; cursor: pointer;
+  padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;
 }
-.result-item:hover { background: #f0f8ff; }
+.result-item:hover { background: #e6f0ff; }
 </style>
 </head>
 <body>
@@ -56,9 +53,7 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 </table>
 <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
 
-<!-- INPUT FORM -->
 <input id="name" placeholder="Name">
-
 <select id="role_type">
   <option value="">Role Type</option>
   <option value="Actor">Actor</option>
@@ -66,12 +61,11 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
   <option value="Producer">Producer</option>
   <option value="Composer">Composer</option>
 </select>
-
-<input id="known_for" placeholder="Known For (e.g. John Wick)">
+<input id="known_for" placeholder="Known For">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
 
-<button onclick="addEntry()" style="background:#28a745;color:white;width:100%;">Save Entry</button>
+<button onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;">Save Entry</button>
 
 <input id="search" placeholder="Search..." oninput="render()" style="margin-top:12px;">
 
@@ -93,10 +87,9 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 <tbody id="table"></tbody>
 </table>
 
-<!-- Modal -->
 <div id="actorModal">
   <h3 id="modalName">Select Correct Person</h3>
-  <div id="modalContent">Searching TMDB...</div>
+  <div id="modalContent">Loading...</div>
   <button onclick="closeModal()" style="margin-top:15px;">Close</button>
 </div>
 
@@ -106,13 +99,13 @@ const sb = window.supabase.createClient(
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
-const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";   // ← Replace with your key
+const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";   // ← CHANGE THIS
 
 let data = [];
 let chart;
 let currentRowId = null;
 
-/* Load */
+// ==================== LOAD ====================
 async function loadData() {
   const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   data = rows || [];
@@ -121,7 +114,7 @@ async function loadData() {
 }
 loadData();
 
-/* Add Entry */
+// ==================== ADD ====================
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const role_type = document.getElementById("role_type").value;
@@ -129,7 +122,7 @@ async function addEntry() {
   const address = document.getElementById("address").value.trim();
   const date_sent = document.getElementById("dateSent").value;
 
-  if (!name || !address) return alert("Name and Address are required");
+  if (!name || !address) return alert("Name and Address required");
 
   await sb.from("Tracking").insert([{ name, role_type, known_for, address, date_sent, status: "pending" }]);
   clearForm();
@@ -144,7 +137,7 @@ function clearForm() {
   document.getElementById("dateSent").value = "";
 }
 
-/* Updates */
+// ==================== UPDATES ====================
 async function updateRoleType(id, value) {
   await sb.from("Tracking").update({ role_type: value }).eq("id", id);
   loadData();
@@ -164,15 +157,15 @@ async function updateDate(id, value) {
   loadData();
 }
 async function deleteEntry(id) {
-  if (confirm("Delete this entry?")) {
+  if (confirm("Delete?")) {
     await sb.from("Tracking").delete().eq("id", id);
     loadData();
   }
 }
 
-/* Render */
+// ==================== RENDER ====================
 function render() {
-  const search = (document.getElementById("search").value || "").toLowerCase().trim();
+  const search = document.getElementById("search").value.toLowerCase().trim();
   const filtered = data.filter(d => 
     (d.name || "").toLowerCase().includes(search) ||
     (d.role_type || "").toLowerCase().includes(search) ||
@@ -180,17 +173,14 @@ function render() {
     (d.address || "").toLowerCase().includes(search)
   );
 
-  const t = document.getElementById("table");
-  t.innerHTML = "";
+  const tbody = document.getElementById("table");
+  tbody.innerHTML = "";
 
   filtered.forEach(d => {
     const status = d.status || "pending";
-    t.innerHTML += `
+    tbody.innerHTML += `
       <tr class="row-${status}">
-        <td class="actor" data-id="${d.id}" data-name="${d.name}" data-role="${d.role_type || ''}" 
-            data-known="${d.known_for || ''}">
-          ${d.name || ""}
-        </td>
+        <td class="actor" data-id="${d.id}" data-name="${d.name}">${d.name || ""}</td>
         <td>
           <select onchange="updateRoleType('${d.id}', this.value)">
             <option value="">—</option>
@@ -200,10 +190,7 @@ function render() {
             <option value="Composer" ${d.role_type==="Composer"?"selected":""}>Composer</option>
           </select>
         </td>
-        <td>
-          <input type="text" class="known-input" value="${d.known_for || ''}" 
-                 onchange="updateKnownFor('${d.id}', this.value)">
-        </td>
+        <td><input type="text" class="known-input" value="${d.known_for || ''}" onchange="updateKnownFor('${d.id}', this.value)"></td>
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
         <td><input class="dateInput" type="date" value="${d.date_received || ""}" data-id="${d.id}" data-action="date"></td>
@@ -221,70 +208,74 @@ function render() {
   });
 }
 
-/* Show Modal */
+// ==================== TMDB SEARCH ====================
 async function showActorInfo(rowId, name) {
   currentRowId = rowId;
-  const modalContent = document.getElementById("modalContent");
-  document.getElementById("modalName").textContent = `Matches for "${name}"`;
-  modalContent.innerHTML = "Searching TMDB...";
+  document.getElementById("modalName").textContent = `Matches for: ${name}`;
+  document.getElementById("modalContent").innerHTML = "Searching TMDB...";
   document.getElementById("actorModal").style.display = "block";
 
-  try {
-    const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}&include_adult=false`);
-    const json = await res.json();
+  console.log("Searching for:", name);
 
-    if (!json.results || json.results.length === 0) {
-      modalContent.innerHTML = `<p>No results found for "${name}".</p>`;
+  try {
+    const response = await fetch(
+      `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`
+    );
+    const result = await response.json();
+
+    console.log("TMDB Response:", result);
+
+    if (!result.results || result.results.length === 0) {
+      document.getElementById("modalContent").innerHTML = `<p>No results found for "${name}"</p>`;
       return;
     }
 
-    let html = `<p><strong>Click on the correct person:</strong></p>`;
-
-    json.results.slice(0, 6).forEach(person => {
+    let html = "";
+    result.results.slice(0, 6).forEach(person => {
       const dept = person.known_for_department || "Unknown";
-      const known = person.known_for ? person.known_for.slice(0, 3).map(k => k.title || k.name).join(", ") : "";
-
       html += `
-        <div class="result-item" onclick="selectPerson('${person.id}', '${person.name.replace(/'/g, "\\'")}', '${dept}')">
-          <strong>${person.name}</strong> — ${dept}<br>
-          <small>${known}</small>
+        <div class="result-item" onclick="selectAndSave('${person.id}', '${person.name.replace(/'/g, "\\'")}', '${dept}')">
+          <strong>${person.name}</strong> — ${dept}
         </div>`;
     });
 
-    modalContent.innerHTML = html;
+    document.getElementById("modalContent").innerHTML = html;
 
   } catch (err) {
-    console.error(err);
-    modalContent.innerHTML = `<p style="color:red;">Error connecting to TMDB. Please check your API key.</p>`;
+    console.error("TMDB Error:", err);
+    document.getElementById("modalContent").innerHTML = `<p style="color:red;">Error: Could not connect to TMDB.<br>Check your API key.</p>`;
   }
 }
 
-/* Select and Save */
-async function selectPerson(tmdbId, correctName, department) {
-  if (!currentRowId) return;
+// ==================== SAVE SELECTED PERSON ====================
+async function selectAndSave(tmdbId, correctName, department) {
+  console.log("Attempting to save:", { tmdbId, correctName, department, rowId: currentRowId });
 
-  const roleType = department === "Acting" ? "Actor" : 
-                   department === "Directing" ? "Director" : department;
+  if (!currentRowId) {
+    alert("Error: No row selected");
+    return;
+  }
+
+  const roleType = (department === "Acting") ? "Actor" : 
+                   (department === "Directing") ? "Director" : department;
 
   try {
-    const { error } = await sb
-      .from("Tracking")
-      .update({
-        name: correctName,
-        role_type: roleType,
-        tmdb_id: tmdbId
-      })
-      .eq("id", currentRowId);
+    const { error } = await sb.from("Tracking").update({
+      name: correctName,
+      role_type: roleType,
+      tmdb_id: tmdbId
+    }).eq("id", currentRowId);
 
     if (error) throw error;
 
-    alert(`✅ Saved: ${correctName}`);
+    console.log("Save successful!");
+    alert(`✅ Saved successfully: ${correctName}`);
     closeModal();
     loadData();
 
   } catch (err) {
-    console.error(err);
-    alert("❌ Failed to save. Please try again.");
+    console.error("Save failed:", err);
+    alert("❌ Failed to save to database. Check console for details.");
   }
 }
 
@@ -293,12 +284,12 @@ function closeModal() {
   currentRowId = null;
 }
 
-/* Events */
+// ==================== EVENTS ====================
 document.addEventListener("click", (e) => {
   if (e.target.classList.contains("actor")) {
     const rowId = e.target.dataset.id;
     const name = e.target.dataset.name;
-    if (name) showActorInfo(rowId, name);
+    if (rowId && name) showActorInfo(rowId, name);
   }
 
   if (e.target.dataset.action === "delete") {
@@ -313,7 +304,7 @@ document.addEventListener("change", (e) => {
   if (action === "date") updateDate(id, e.target.value);
 });
 
-/* Stats */
+// ==================== STATS ====================
 function updateStats() {
   const pending = data.filter(d => (d.status||"pending") === "pending").length;
   const received = data.filter(d => d.status === "received").length;
@@ -331,10 +322,7 @@ function updateStats() {
     type: "pie",
     data: {
       labels: ["Received", "Pending", "RTS", "Unsigned"],
-      datasets: [{ 
-        data: [received, pending, rts, unsigned],
-        backgroundColor: ["#1f8f3a", "#ffea7a", "#b3261e", "#1e5bb3"]
-      }]
+      datasets: [{ data: [received, pending, rts, unsigned], backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] }]
     }
   });
 }
