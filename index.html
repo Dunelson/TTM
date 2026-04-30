@@ -16,14 +16,39 @@ body {
   background: #f4f6f8;
 }
 
-h2 { margin-bottom: 10px; }
-
 input {
   width: 100%;
   padding: 10px;
   margin-top: 6px;
 }
 
+/* search */
+#search {
+  margin-bottom: 10px;
+}
+
+/* summary */
+.summary {
+  width: 70%;
+  margin: 10px auto;
+  background: white;
+  text-align: center;
+  border-collapse: collapse;
+}
+
+.summary td {
+  border: 1px solid #ddd;
+  padding: 6px;
+  font-size: 12px;
+}
+
+/* chart */
+.chart-wrap {
+  max-width: 260px;
+  margin: 10px auto;
+}
+
+/* table */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -37,54 +62,15 @@ th, td {
   font-size: 13px;
 }
 
-th {
-  background: #222;
-  color: white;
-}
-
-/* ROW COLORS */
+/* row colors */
 .row-pending { background: #ffea7a; }
 .row-received { background: #c8f7d2; }
 .row-rts { background: #ffc7c7; }
 .row-unsigned { background: #cfe1ff; }
 
-/* compact received */
-.receivedDate {
-  width: 120px;
-  font-size: 12px;
-  padding: 4px;
-}
-
-/* summary */
-.summary {
-  width: 60%;
-  margin: 10px auto;
-  background: white;
-  text-align: center;
-  border-collapse: collapse;
-}
-.summary td {
-  border: 1px solid #ddd;
-  padding: 6px;
-  font-size: 12px;
-}
-
-/* chart */
-.chart-wrap {
-  max-width: 260px;
-  margin: 10px auto;
-}
-
-/* dropdown */
 select {
   font-size: 12px;
   padding: 4px;
-}
-
-/* clickable actor */
-.actor {
-  color: blue;
-  cursor: pointer;
 }
 </style>
 </head>
@@ -92,6 +78,8 @@ select {
 <body>
 
 <h2>TTM Tracker</h2>
+
+<input id="search" placeholder="Search name or address..." oninput="render()">
 
 <!-- SUMMARY -->
 <table class="summary">
@@ -145,9 +133,15 @@ let chart;
    LOAD
 ========================= */
 async function loadData() {
-  const { data: rows } = await sb.from("Tracking")
+  const { data: rows, error } = await sb.from("Tracking")
     .select("*")
     .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log(error);
+    alert("DB error: " + error.message);
+    return;
+  }
 
   data = rows || [];
   render();
@@ -157,22 +151,28 @@ async function loadData() {
 loadData();
 
 /* =========================
-   ADD
+   ADD ENTRY (FIXED)
 ========================= */
 async function addEntry() {
+
   const name = document.getElementById("name").value.trim();
   const address = document.getElementById("address").value.trim();
   const date_sent = document.getElementById("dateSent").value;
 
   if (!name || !address) return alert("Missing fields");
 
-  await sb.from("Tracking").insert([{
+  const { error } = await sb.from("Tracking").insert([{
     name,
     address,
     date_sent,
-    date_received: "",
     status: "pending"
   }]);
+
+  if (error) {
+    console.log(error);
+    alert("Insert failed: " + error.message);
+    return;
+  }
 
   document.getElementById("name").value = "";
   document.getElementById("address").value = "";
@@ -182,11 +182,9 @@ async function addEntry() {
 }
 
 /* =========================
-   SAFE STATUS UPDATE (FIXED)
+   STATUS UPDATE
 ========================= */
-async function updateStatus(id, statusRaw) {
-
-  const status = (statusRaw || "pending").toLowerCase();
+async function updateStatus(id, status) {
 
   const update = { status };
 
@@ -194,75 +192,57 @@ async function updateStatus(id, statusRaw) {
     update.date_received = new Date().toISOString().split("T")[0];
   }
 
-  await sb.from("Tracking")
+  const { error } = await sb.from("Tracking")
     .update(update)
     .eq("id", id);
 
+  if (error) {
+    console.log(error);
+    alert("Update failed: " + error.message);
+  }
+
   loadData();
 }
 
 /* =========================
-   DELETE
-========================= */
-async function deleteEntry(id) {
-  await sb.from("Tracking").delete().eq("id", id);
-  loadData();
-}
-
-/* =========================
-   RENDER (FIXED SAFE EVENTS)
+   RENDER (WITH SEARCH)
 ========================= */
 function render() {
+
+  const search = (document.getElementById("search").value || "").toLowerCase();
+
+  const filtered = data.filter(d =>
+    (d.name || "").toLowerCase().includes(search) ||
+    (d.address || "").toLowerCase().includes(search)
+  );
+
   const t = document.getElementById("table");
   t.innerHTML = "";
 
-  data.forEach(d => {
+  filtered.forEach(d => {
 
     const status = d.status || "pending";
 
-    const safeName = encodeURIComponent(d.name || "");
-
     t.innerHTML += `
       <tr class="row-${status}">
-
-        <td class="actor" data-name="${safeName}">
-          ${d.name || ""}
-        </td>
-
+        <td>${d.name || ""}</td>
         <td>${d.address || ""}</td>
         <td>${d.date_sent || ""}</td>
-
         <td>
-          <input class="receivedDate"
-            type="date"
+          <input type="date"
             value="${d.date_received || ""}"
             onchange="updateStatus('${d.id}', '${status}')">
         </td>
-
         <td>
-          <select data-id="${d.id}" class="statusSelect">
+          <select onchange="updateStatus('${d.id}', this.value)">
             <option value="pending" ${status==="pending"?"selected":""}>Pending</option>
-            <option value="received" ${status==="received"?"selected":""}>Auto Received</option>
+            <option value="received" ${status==="received"?"selected":""}>Received</option>
             <option value="rts" ${status==="rts"?"selected":""}>RTS</option>
-            <option value="unsigned" ${status==="unsigned"?"selected":""}>Returned Unsigned</option>
+            <option value="unsigned" ${status==="unsigned"?"selected":""}>Unsigned</option>
           </select>
         </td>
-
       </tr>
     `;
-  });
-
-  /* attach safe event listeners AFTER render */
-  document.querySelectorAll(".statusSelect").forEach(sel => {
-    sel.onchange = (e) => {
-      updateStatus(sel.dataset.id, sel.value);
-    };
-  });
-
-  document.querySelectorAll(".actor").forEach(el => {
-    el.onclick = () => {
-      openActor(decodeURIComponent(el.dataset.name));
-    };
   });
 }
 
@@ -300,13 +280,6 @@ function updateAll() {
       }]
     }
   });
-}
-
-/* =========================
-   ACTOR (RESTORED SAFE)
-========================= */
-function openActor(name) {
-  alert("Actor clicked: " + name);
 }
 
 </script>
