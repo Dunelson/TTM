@@ -3,44 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Tracker</title>
+<title>TTM Tracker Pro</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 <style>
 body { font-family: Arial; margin: 0; padding: 15px; background: #f4f6f8; }
 input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; }
-
 .dateInput { width: 130px; font-size: 12px; padding: 4px; }
 .known-input { width: 180px; font-size: 12px; padding: 4px; }
-
 .summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
 .summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
 .chart-wrap { max-width: 220px; margin: 10px auto; }
-
 table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
 th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
-
 .row-pending { background: #ffea7a; }
 .row-received { background: #c8f7d2; }
 .row-rts { background: #ffc7c7; }
 .row-unsigned { background: #cfe1ff; }
-
 .actor { color: blue; cursor: pointer; text-decoration: underline; }
 .actor:hover { color: darkblue; }
-
-.deleteBtn {
-  background: #b3261e; color: white; padding: 4px 8px; font-size: 12px; border: none; cursor: pointer;
-}
-
+.deleteBtn { background: #b3261e; color: white; padding: 4px 8px; font-size: 12px; border: none; cursor: pointer; }
 #actorModal {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: white; padding: 20px; border: 1px solid #666; box-shadow: 0 4px 25px rgba(0,0,0,0.4);
   max-width: 90%; max-height: 80vh; overflow-y: auto; z-index: 1000; border-radius: 8px;
 }
+.bulk-area { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; }
 </style>
 </head>
 <body>
+
 <h2>TTM Tracker</h2>
+
+<div class="bulk-area">
+  <strong>Bulk Upload (.csv)</strong><br>
+  <input type="file" id="csvFile" accept=".csv" style="width: auto; font-size: 12px; border: none; padding: 0;">
+  <button onclick="uploadCSV()" style="background:#007bff; color:white; padding: 8px 15px; border:none; cursor:pointer; border-radius:4px; margin-top:10px;">Upload Entries</button>
+  <div style="font-size: 11px; color: #666; margin-top: 5px;">Headers needed: name, address, role_type, known_for, date_sent</div>
+</div>
 
 <table class="summary">
   <tr>
@@ -52,7 +53,6 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 </table>
 <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
 
-<!-- Input Form -->
 <input id="name" placeholder="Name">
 <select id="role_type">
   <option value="">Role Type</option>
@@ -61,25 +61,21 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
   <option value="Producer">Producer</option>
   <option value="Composer">Composer</option>
 </select>
-<input id="known_for" placeholder="Known For (helps with search)">
+<input id="known_for" placeholder="Known For">
 <input id="address" placeholder="Address">
 <input id="dateSent" type="date">
 
-<button onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;">Save Entry</button>
+<button onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;margin-top:10px;border:none;cursor:pointer;border-radius:4px;">Save Entry</button>
 
-<!-- Sort Control -->
 <div style="margin: 12px 0 8px 0;">
   <strong>Sort by:</strong> 
-  <select id="sortBy" onchange="sortAndRender()">
+  <select id="sortBy" onchange="sortAndRender()" style="width: auto;">
     <option value="name">Name (A-Z)</option>
-    <option value="role">Role Type</option>
-    <option value="known_for">Known For</option>
     <option value="date_sent">Date Sent (Newest)</option>
     <option value="date_received">Received Date (Newest)</option>
   </select>
+  <input id="search" placeholder="Search..." oninput="sortAndRender()" style="width: 200px; display: inline-block; margin-left: 10px;">
 </div>
-
-<input id="search" placeholder="Search..." oninput="sortAndRender()">
 
 <hr>
 
@@ -87,7 +83,7 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 <thead>
 <tr>
   <th>Name</th>
-  <th>Role Type</th>
+  <th>Role</th>
   <th>Known For</th>
   <th>Address</th>
   <th>Sent</th>
@@ -99,10 +95,9 @@ th, td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
 <tbody id="table"></tbody>
 </table>
 
-<!-- Actor Modal -->
 <div id="actorModal">
   <h3 id="modalName"></h3>
-  <div id="modalContent">Loading information...</div>
+  <div id="modalContent">Loading...</div>
   <button onclick="closeModal()" style="margin-top:15px;">Close</button>
 </div>
 
@@ -113,240 +108,137 @@ const sb = window.supabase.createClient(
 );
 
 const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
-
 let data = [];
 let chart;
 
-/* ========================= LOAD DATA ========================= */
 async function loadData() {
-  const { data: rows } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
+  const { data: rows, error } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
+  if (error) console.error(error);
   data = rows || [];
-  sortAndRender();        // Use this instead of render()
+  sortAndRender();
   updateStats();
 }
 loadData();
 
-/* ========================= ADD ENTRY ========================= */
 async function addEntry() {
   const name = document.getElementById("name").value.trim();
   const role_type = document.getElementById("role_type").value;
   const known_for = document.getElementById("known_for").value.trim();
   const address = document.getElementById("address").value.trim();
   const date_sent = document.getElementById("dateSent").value;
-
-  if (!name || !address) return alert("Name and Address are required");
-
-  await sb.from("Tracking").insert([{
-    name, role_type, known_for, address, date_sent, status: "pending"
-  }]);
-
-  clearForm();
+  if (!name || !address) return alert("Name and Address required");
+  await sb.from("Tracking").insert([{ name, role_type, known_for, address, date_sent, status: "pending" }]);
+  document.querySelectorAll('input').forEach(i => i.id !== 'search' ? i.value = "" : null);
   loadData();
 }
 
-function clearForm() {
-  document.getElementById("name").value = "";
-  document.getElementById("role_type").value = "";
-  document.getElementById("known_for").value = "";
-  document.getElementById("address").value = "";
-  document.getElementById("dateSent").value = "";
+async function uploadCSV() {
+  const file = document.getElementById('csvFile').files[0];
+  if (!file) return alert("Select a CSV file.");
+  
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: async function(results) {
+      const processed = results.data.map(row => ({
+        ...row,
+        status: row.status || 'pending'
+      }));
+      const { error } = await sb.from("Tracking").insert(processed);
+      if (error) alert("Error: " + error.message);
+      else { alert("Upload complete!"); loadData(); }
+    }
+  });
 }
 
-/* ========================= UPDATE FUNCTIONS ========================= */
-async function updateRoleType(id, value) {
-  await sb.from("Tracking").update({ role_type: value }).eq("id", id);
-  loadData();
-}
-async function updateKnownFor(id, value) {
-  await sb.from("Tracking").update({ known_for: value }).eq("id", id);
-  loadData();
-}
 async function updateStatus(id, status) {
   const update = { status };
   if (status === "received") update.date_received = new Date().toISOString().split("T")[0];
   await sb.from("Tracking").update(update).eq("id", id);
   loadData();
 }
-async function updateDate(id, value) {
-  await sb.from("Tracking").update({ date_received: value || null }).eq("id", id);
-  loadData();
-}
-async function deleteEntry(id) {
-  if (confirm("Delete this entry?")) {
-    await sb.from("Tracking").delete().eq("id", id);
-    loadData();
-  }
-}
 
-/* ========================= SORT & RENDER ========================= */
+async function updateKnownFor(id, val) { await sb.from("Tracking").update({ known_for: val }).eq("id", id); loadData(); }
+async function updateRoleType(id, val) { await sb.from("Tracking").update({ role_type: val }).eq("id", id); loadData(); }
+async function updateDate(id, val) { await sb.from("Tracking").update({ date_received: val || null }).eq("id", id); loadData(); }
+async function deleteEntry(id) { if (confirm("Delete?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); } }
+
 function sortAndRender() {
-  const search = (document.getElementById("search").value || "").toLowerCase().trim();
-  const sortBy = document.getElementById("sortBy").value || "name";
-
-  let filtered = data.filter(d =>
-    (d.name || "").toLowerCase().includes(search) ||
-    (d.role_type || "").toLowerCase().includes(search) ||
-    (d.known_for || "").toLowerCase().includes(search) ||
-    (d.address || "").toLowerCase().includes(search)
-  );
-
-  // Sorting Logic
+  const search = document.getElementById("search").value.toLowerCase();
+  const sortBy = document.getElementById("sortBy").value;
+  let filtered = data.filter(d => (d.name||"").toLowerCase().includes(search) || (d.known_for||"").toLowerCase().includes(search));
+  
   filtered.sort((a, b) => {
-    switch(sortBy) {
-      case "name":
-        return (a.name || "").localeCompare(b.name || "");
-      case "role":
-        return (a.role_type || "").localeCompare(b.role_type || "");
-      case "known_for":
-        return (a.known_for || "").localeCompare(b.known_for || "");
-      case "date_sent":
-        return (b.date_sent || "1900-01-01").localeCompare(a.date_sent || "1900-01-01");
-      case "date_received":
-        return (b.date_received || "1900-01-01").localeCompare(a.date_received || "1900-01-01");
-      default:
-        return 0;
-    }
+    if (sortBy === "name") return (a.name||"").localeCompare(b.name||"");
+    return (b[sortBy] || "").localeCompare(a[sortBy] || "");
   });
 
   const tbody = document.getElementById("table");
-  tbody.innerHTML = "";
-
-  filtered.forEach(d => {
-    const status = d.status || "pending";
-    tbody.innerHTML += `
-      <tr class="row-${status}">
-        <td class="actor" data-name="${d.name}" data-role="${d.role_type || ''}" data-known="${d.known_for || ''}">
-          ${d.name || ""}
-        </td>
-        <td>
-          <select onchange="updateRoleType('${d.id}', this.value)">
-            <option value="">—</option>
-            <option value="Actor" ${d.role_type==="Actor"?"selected":""}>Actor</option>
-            <option value="Director" ${d.role_type==="Director"?"selected":""}>Director</option>
-            <option value="Producer" ${d.role_type==="Producer"?"selected":""}>Producer</option>
-            <option value="Composer" ${d.role_type==="Composer"?"selected":""}>Composer</option>
-          </select>
-        </td>
-        <td>
-          <input type="text" class="known-input" value="${d.known_for || ''}" 
-                 onchange="updateKnownFor('${d.id}', this.value)">
-        </td>
-        <td>${d.address || ""}</td>
-        <td>${d.date_sent || ""}</td>
-        <td>
-          <input class="dateInput" type="date" value="${d.date_received || ""}" 
-                 data-id="${d.id}" data-action="date">
-        </td>
-        <td>
-          <select data-id="${d.id}" data-action="status">
-            <option value="pending" ${status==="pending"?"selected":""}>Pending</option>
-            <option value="received" ${status==="received"?"selected":""}>Received</option>
-            <option value="rts" ${status==="rts"?"selected":""}>RTS</option>
-            <option value="unsigned" ${status==="unsigned"?"selected":""}>Unsigned</option>
-          </select>
-        </td>
-        <td><button class="deleteBtn" data-id="${d.id}" data-action="delete">Delete</button></td>
-      </tr>
-    `;
-  });
+  tbody.innerHTML = filtered.map(d => `
+    <tr class="row-${d.status || 'pending'}">
+      <td class="actor" data-name="${d.name}" data-role="${d.role_type}" data-known="${d.known_for}">${d.name}</td>
+      <td>
+        <select onchange="updateRoleType('${d.id}', this.value)">
+          <option value="Actor" ${d.role_type==="Actor"?"selected":""}>Actor</option>
+          <option value="Director" ${d.role_type==="Director"?"selected":""}>Director</option>
+          <option value="Producer" ${d.role_type==="Producer"?"selected":""}>Producer</option>
+          <option value="Composer" ${d.role_type==="Composer"?"selected":""}>Composer</option>
+        </select>
+      </td>
+      <td><input class="known-input" value="${d.known_for||''}" onchange="updateKnownFor('${d.id}', this.value)"></td>
+      <td>${d.address || ""}</td>
+      <td>${d.date_sent || ""}</td>
+      <td><input class="dateInput" type="date" value="${d.date_received||''}" onchange="updateDate('${d.id}', this.value)"></td>
+      <td>
+        <select onchange="updateStatus('${d.id}', this.value)">
+          <option value="pending" ${d.status==="pending"?"selected":""}>Pending</option>
+          <option value="received" ${d.status==="received"?"selected":""}>Received</option>
+          <option value="rts" ${d.status==="rts"?"selected":""}>RTS</option>
+          <option value="unsigned" ${d.status==="unsigned"?"selected":""}>Unsigned</option>
+        </select>
+      </td>
+      <td><button class="deleteBtn" onclick="deleteEntry('${d.id}')">Delete</button></td>
+    </tr>`).join("");
 }
 
-/* ========================= ACTOR MODAL ========================= */
-async function showActorInfo(name, role_type = "", known_for = "") {
+async function showActorInfo(name, role, known) {
   const modal = document.getElementById("actorModal");
-  const modalName = document.getElementById("modalName");
-  const modalContent = document.getElementById("modalContent");
-
-  modalName.textContent = name;
-  modalContent.innerHTML = "Searching TMDB...";
+  document.getElementById("modalName").textContent = name;
+  document.getElementById("modalContent").innerHTML = "Searching TMDB...";
   modal.style.display = "block";
-
-  let query = [name, role_type, known_for].filter(Boolean).join(" ");
-
   try {
-    let res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`);
+    let res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name + " " + known)}`);
     let json = await res.json();
-
-    if (!json.results || json.results.length === 0) {
-      res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`);
-      json = await res.json();
-    }
-
-    if (!json.results || json.results.length === 0) {
-      modalContent.innerHTML = `<p>No results found for "${name}".</p>`;
-      return;
-    }
-
-    const person = json.results[0];
-    const detailRes = await fetch(`https://api.themoviedb.org/3/person/${person.id}?api_key=${TMDB_API_KEY}&append_to_response=combined_credits`);
-    const details = await detailRes.json();
-
-    let html = `<p><strong>Department:</strong> ${person.known_for_department || 'Acting'}</p>`;
-
-    if (details.biography) {
-      html += `<p><strong>Bio:</strong><br>${details.biography.substring(0, 400)}...</p>`;
-    }
-
-    if (details.combined_credits?.cast?.length) {
-      html += `<p><strong>Notable Roles:</strong></p><ul>`;
-      details.combined_credits.cast.slice(0, 8).forEach(c => {
-        html += `<li>${c.title || c.name} ${c.character ? `(${c.character})` : ''}</li>`;
-      });
-      html += `</ul>`;
-    }
-
-    modalContent.innerHTML = html;
-
-  } catch (err) {
-    console.error(err);
-    modalContent.innerHTML = `<p style="color:red;">Error loading from TMDB.</p>`;
-  }
+    if (!json.results.length) { modal.innerHTML = "No results."; return; }
+    const p = json.results[0];
+    const dRes = await fetch(`https://api.themoviedb.org/3/person/${p.id}?api_key=${TMDB_API_KEY}&append_to_response=combined_credits`);
+    const details = await dRes.json();
+    document.getElementById("modalContent").innerHTML = `
+      <p><strong>Bio:</strong> ${details.biography ? details.biography.substring(0, 300) + "..." : "N/A"}</p>
+      <p><strong>Credits:</strong> ${details.combined_credits.cast.slice(0, 5).map(c => c.title || c.name).join(", ")}</p>
+    `;
+  } catch (e) { document.getElementById("modalContent").innerHTML = "Error loading."; }
 }
 
-function closeModal() {
-  document.getElementById("actorModal").style.display = "none";
-}
+function closeModal() { document.getElementById("actorModal").style.display = "none"; }
 
-/* ========================= EVENTS ========================= */
-document.addEventListener("click", (e) => {
-  if (e.target.classList.contains("actor")) {
-    const name = e.target.dataset.name;
-    const role = e.target.dataset.role;
-    const known = e.target.dataset.known;
-    if (name) showActorInfo(name, role, known);
-  }
-
-  if (e.target.dataset.action === "delete") {
-    deleteEntry(e.target.dataset.id);
-  }
+document.addEventListener("click", e => {
+  if (e.target.classList.contains("actor")) showActorInfo(e.target.dataset.name, e.target.dataset.role, e.target.dataset.known);
 });
 
-document.addEventListener("change", (e) => {
-  const id = e.target.dataset.id;
-  const action = e.target.dataset.action;
-  if (action === "status") updateStatus(id, e.target.value);
-  if (action === "date") updateDate(id, e.target.value);
-});
-
-/* ========================= STATS ========================= */
 function updateStats() {
-  const pending = data.filter(d => (d.status||"pending") === "pending").length;
-  const received = data.filter(d => d.status === "received").length;
-  const rts = data.filter(d => d.status === "rts").length;
-  const unsigned = data.filter(d => d.status === "unsigned").length;
-
-  document.getElementById("sumPending").innerText = pending;
-  document.getElementById("sumReceived").innerText = received;
-  document.getElementById("sumRTS").innerText = rts;
-  document.getElementById("sumUnsigned").innerText = unsigned;
-
-  const ctx = document.getElementById("pieChart");
+  const stats = { pending: 0, received: 0, rts: 0, unsigned: 0 };
+  data.forEach(d => stats[d.status || "pending"]++);
+  document.getElementById("sumPending").innerText = stats.pending;
+  document.getElementById("sumReceived").innerText = stats.received;
+  document.getElementById("sumRTS").innerText = stats.rts;
+  document.getElementById("sumUnsigned").innerText = stats.unsigned;
   if (chart) chart.destroy();
-  chart = new Chart(ctx, {
+  chart = new Chart(document.getElementById("pieChart"), {
     type: "pie",
     data: {
       labels: ["Received", "Pending", "RTS", "Unsigned"],
-      datasets: [{ data: [received, pending, rts, unsigned], backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] }]
+      datasets: [{ data: [stats.received, stats.pending, stats.rts, stats.unsigned], backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] }]
     }
   });
 }
