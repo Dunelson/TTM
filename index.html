@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Tracker Pro</title>
+<title>TTM Tracker Final</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
@@ -22,12 +22,11 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
 .row-rts { background: #ffc7c7; }
 .row-unsigned { background: #cfe1ff; }
 .actor { color: blue; cursor: pointer; text-decoration: underline; font-weight: bold; }
-.actor:hover { color: darkblue; }
 .deleteBtn { background: #b3261e; color: white; padding: 4px 8px; font-size: 11px; border: none; cursor: pointer; border-radius: 3px; }
 #actorModal {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: white; padding: 20px; border: 1px solid #666; box-shadow: 0 4px 25px rgba(0,0,0,0.4);
-  max-width: 90%; max-height: 80vh; overflow-y: auto; z-index: 1000; border-radius: 8px;
+  max-width: 90%; z-index: 1000; border-radius: 8px;
 }
 .bulk-area { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #007bff; }
 </style>
@@ -40,7 +39,6 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
   <strong>Bulk Upload (.csv)</strong><br>
   <input type="file" id="csvFile" accept=".csv" style="width: auto; font-size: 12px; border: none; padding: 0;">
   <button onclick="uploadCSV()" style="background:#007bff; color:white; padding: 8px 15px; border:none; cursor:pointer; border-radius:4px; margin-top:10px;">Upload Entries</button>
-  <div style="font-size: 11px; color: #666; margin-top: 5px;">Headers: name, address, role_type, known_for, date_sent</div>
 </div>
 
 <table class="summary">
@@ -55,34 +53,25 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
 
 <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
     <strong>Add New Entry</strong>
-    <input id="nameInput" placeholder="Name">
-    <select id="roleInput">
+    <input id="f_name" placeholder="Name">
+    <select id="f_role">
       <option value="">Role Type</option>
       <option value="Actor">Actor</option>
       <option value="Director">Director</option>
       <option value="Producer">Producer</option>
-      <option value="Composer">Composer</option>
       <option value="Musician">Musician</option>
       <option value="Comedian">Comedian</option>
-      <option value="Coach">Coach</option>
-      <option value="TV Judge">TV Judge</option>
     </select>
-    <input id="knownInput" placeholder="Known For">
-    <input id="addressInput" placeholder="Address">
+    <input id="f_known" placeholder="Known For">
+    <input id="f_address" placeholder="Address">
     <div style="margin-top:10px;">
         <label style="font-size:11px; display:block; margin-bottom:2px;">Date Sent</label>
-        <input id="dateSentInput" type="date">
+        <input id="f_datesent" type="date">
     </div>
-    <button onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;margin-top:10px;border:none;cursor:pointer;border-radius:4px;font-weight:bold;">Save Entry</button>
+    <button type="button" onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;margin-top:10px;border:none;cursor:pointer;border-radius:4px;font-weight:bold;">Save Entry</button>
 </div>
 
-<div style="margin: 20px 0 8px 0; display: flex; align-items: center; gap: 10px;">
-  <strong>Sort:</strong> 
-  <select id="sortBy" onchange="sortAndRender()" style="width: auto;">
-    <option value="created_at">Date Added (Newest)</option>
-    <option value="name">Name (A-Z)</option>
-    <option value="date_sent">Date Sent (Newest)</option>
-  </select>
+<div style="margin: 20px 0 8px 0;">
   <input id="search" placeholder="Search entries..." oninput="sortAndRender()" style="width: 250px;">
 </div>
 
@@ -106,10 +95,12 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
 <div id="actorModal">
   <h3 id="modalName"></h3>
   <div id="modalContent">Loading...</div>
-  <button onclick="closeModal()" style="margin-top:15px;">Close</button>
+  <button onclick="closeModal()">Close</button>
 </div>
 
 <script>
+console.log("Script loaded and running...");
+
 const sb = window.supabase.createClient(
   "https://aeezsewfoozizduzuidv.supabase.co",
   "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
@@ -119,54 +110,61 @@ const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
 let data = [];
 let chart;
 
-/* LOAD DATA */
 async function loadData() {
   const { data: rows, error } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
-  if (error) console.error("Load Error:", error);
+  if (error) console.error("Supabase Load Error:", error);
   data = rows || [];
   sortAndRender();
   updateStats();
 }
 loadData();
 
-/* ADD ENTRY (MANUAL) */
 async function addEntry() {
-  const name = document.getElementById("nameInput").value.trim();
-  const role_type = document.getElementById("roleInput").value;
-  const known_for = document.getElementById("knownInput").value.trim();
-  const address = document.getElementById("addressInput").value.trim();
-  const date_sent = document.getElementById("dateSentInput").value; // Gets YYYY-MM-DD
-
-  if (!name || !address) return alert("Name and Address required");
-
-  const newEntry = { 
-    name, 
-    role_type, 
-    known_for, 
-    address, 
-    date_sent: date_sent || null, 
-    status: "pending"
-  };
-
-  console.log("Sending to Supabase:", newEntry);
-
-  const { error } = await sb.from("Tracking").insert([newEntry]);
+  console.log("Add Entry button clicked!");
   
-  if(error) {
-    alert("Error: " + error.message);
-    console.error("Insert Error:", error);
-  } else {
-    // Clear inputs
-    document.getElementById("nameInput").value = "";
-    document.getElementById("roleInput").value = "";
-    document.getElementById("knownInput").value = "";
-    document.getElementById("addressInput").value = "";
-    document.getElementById("dateSentInput").value = "";
-    loadData();
+  try {
+    const name = document.getElementById("f_name").value.trim();
+    const role_type = document.getElementById("f_role").value;
+    const known_for = document.getElementById("f_known").value.trim();
+    const address = document.getElementById("f_address").value.trim();
+    const date_sent = document.getElementById("f_datesent").value;
+
+    if (!name || !address) {
+      alert("Name and Address are required!");
+      return;
+    }
+
+    const payload = { 
+      name, 
+      role_type, 
+      known_for, 
+      address, 
+      date_sent: date_sent || null, 
+      status: "pending"
+    };
+
+    console.log("Attempting to insert:", payload);
+
+    const { data: result, error } = await sb.from("Tracking").insert([payload]).select();
+    
+    if(error) {
+      console.error("Supabase Insert Error:", error);
+      alert("Database error: " + error.message);
+    } else {
+      console.log("Insert successful:", result);
+      // Clear form
+      document.getElementById("f_name").value = "";
+      document.getElementById("f_role").value = "";
+      document.getElementById("f_known").value = "";
+      document.getElementById("f_address").value = "";
+      document.getElementById("f_datesent").value = "";
+      loadData();
+    }
+  } catch (err) {
+    console.error("Critical JavaScript Error:", err);
   }
 }
 
-/* BULK UPLOAD */
 async function uploadCSV() {
   const file = document.getElementById('csvFile').files[0];
   if (!file) return alert("Select a CSV file.");
@@ -185,18 +183,12 @@ async function uploadCSV() {
       }));
       
       const { error } = await sb.from("Tracking").insert(processed);
-      if (error) {
-          alert("Error: " + error.message);
-          console.error(error);
-      } else { 
-          alert("Upload complete!"); 
-          loadData(); 
-      }
+      if (error) console.error(error);
+      loadData();
     }
   });
 }
 
-/* UPDATES */
 async function updateStatus(id, status) {
   const update = { status };
   if (status === "received") update.date_received = new Date().toISOString().split("T")[0];
@@ -209,48 +201,31 @@ async function updateRoleType(id, val) { await sb.from("Tracking").update({ role
 async function updateDate(id, val) { await sb.from("Tracking").update({ date_received: val || null }).eq("id", id); loadData(); }
 async function deleteEntry(id) { if (confirm("Delete?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); } }
 
-/* RENDER TABLE */
 function sortAndRender() {
   const search = document.getElementById("search").value.toLowerCase();
-  const sortBy = document.getElementById("sortBy").value;
+  let filtered = data.filter(d => (d.name||"").toLowerCase().includes(search) || (d.known_for||"").toLowerCase().includes(search));
   
-  let filtered = data.filter(d => 
-    (d.name||"").toLowerCase().includes(search) || 
-    (d.known_for||"").toLowerCase().includes(search) || 
-    (d.address||"").toLowerCase().includes(search)
-  );
-  
-  filtered.sort((a, b) => {
-    if (sortBy === "name") return (a.name||"").localeCompare(b.name||"");
-    return (b[sortBy] || "").localeCompare(a[sortBy] || "");
-  });
-
   const tbody = document.getElementById("tableBody");
-  tbody.innerHTML = filtered.map(d => {
-    const addedDate = d.created_at ? new Date(d.created_at).toLocaleDateString() : '—';
-    return `
+  tbody.innerHTML = filtered.map(d => `
     <tr class="row-${d.status || 'pending'}">
-      <td style="font-size:10px; color:#666;">${addedDate}</td>
+      <td style="font-size:10px;">${d.created_at ? new Date(d.created_at).toLocaleDateString() : '-'}</td>
       <td class="actor" data-name="${d.name}" data-role="${d.role_type}" data-known="${d.known_for}">${d.name || ''}</td>
       <td>
-        <select onchange="updateRoleType('${d.id}', this.value)" style="font-size:11px; padding:2px;">
+        <select onchange="updateRoleType('${d.id}', this.value)" style="font-size:11px;">
           <option value="">—</option>
           <option value="Actor" ${d.role_type==="Actor"?"selected":""}>Actor</option>
           <option value="Director" ${d.role_type==="Director"?"selected":""}>Director</option>
           <option value="Producer" ${d.role_type==="Producer"?"selected":""}>Producer</option>
-          <option value="Composer" ${d.role_type==="Composer"?"selected":""}>Composer</option>
           <option value="Musician" ${d.role_type==="Musician"?"selected":""}>Musician</option>
           <option value="Comedian" ${d.role_type==="Comedian"?"selected":""}>Comedian</option>
-          <option value="Coach" ${d.role_type==="Coach"?"selected":""}>Coach</option>
-          <option value="TV Judge" ${d.role_type==="TV Judge"?"selected":""}>TV Judge</option>
         </select>
       </td>
       <td><input class="known-input" value="${d.known_for||''}" onchange="updateKnownFor('${d.id}', this.value)"></td>
-      <td style="font-size:11px; max-width:200px;">${d.address || ""}</td>
+      <td style="font-size:11px;">${d.address || ""}</td>
       <td style="font-size:11px;">${d.date_sent || ""}</td>
       <td><input class="dateInput" type="date" value="${d.date_received||''}" onchange="updateDate('${d.id}', this.value)"></td>
       <td>
-        <select onchange="updateStatus('${d.id}', this.value)" style="font-size:11px; padding:2px;">
+        <select onchange="updateStatus('${d.id}', this.value)" style="font-size:11px;">
           <option value="pending" ${d.status==="pending"?"selected":""}>Pending</option>
           <option value="received" ${d.status==="received"?"selected":""}>Received</option>
           <option value="rts" ${d.status==="rts"?"selected":""}>RTS</option>
@@ -258,10 +233,9 @@ function sortAndRender() {
         </select>
       </td>
       <td><button class="deleteBtn" onclick="deleteEntry('${d.id}')">✕</button></td>
-    </tr>`}).join("");
+    </tr>`).join("");
 }
 
-/* TMDB MODAL */
 async function showActorInfo(name, role, known) {
   const modal = document.getElementById("actorModal");
   document.getElementById("modalName").textContent = name;
@@ -274,11 +248,8 @@ async function showActorInfo(name, role, known) {
     const p = json.results[0];
     const dRes = await fetch(`https://api.themoviedb.org/3/person/${p.id}?api_key=${TMDB_API_KEY}&append_to_response=combined_credits`);
     const details = await dRes.json();
-    document.getElementById("modalContent").innerHTML = `
-      <p><strong>Bio:</strong> ${details.biography ? details.biography.substring(0, 300) + "..." : "N/A"}</p>
-      <p><strong>Notable Credits:</strong> ${details.combined_credits?.cast?.slice(0, 5).map(c => c.title || c.name).join(", ") || "N/A"}</p>
-    `;
-  } catch (e) { document.getElementById("modalContent").innerHTML = "Error loading info."; }
+    document.getElementById("modalContent").innerHTML = `<p><strong>Bio:</strong> ${details.biography ? details.biography.substring(0, 300) + "..." : "N/A"}</p>`;
+  } catch (e) { document.getElementById("modalContent").innerHTML = "Error loading."; }
 }
 
 function closeModal() { document.getElementById("actorModal").style.display = "none"; }
@@ -287,7 +258,6 @@ document.addEventListener("click", e => {
   if (e.target.classList.contains("actor")) showActorInfo(e.target.dataset.name, e.target.dataset.role, e.target.dataset.known);
 });
 
-/* PIE CHART STATS */
 function updateStats() {
   const stats = { pending: 0, received: 0, rts: 0, unsigned: 0 };
   data.forEach(d => stats[d.status || "pending"]++);
@@ -295,7 +265,6 @@ function updateStats() {
   document.getElementById("sumReceived").innerText = stats.received;
   document.getElementById("sumRTS").innerText = stats.rts;
   document.getElementById("sumUnsigned").innerText = stats.unsigned;
-  
   if (chart) chart.destroy();
   chart = new Chart(document.getElementById("pieChart"), {
     type: "pie",
