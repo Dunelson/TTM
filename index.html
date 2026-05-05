@@ -3,122 +3,256 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Tracker Pro</title>
+<title>TTM Tracker | Premium Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 15px; background: #f4f6f8; }
-    input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-    
-    .summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
-    .summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
-    .chart-wrap { max-width: 200px; margin: 10px auto; }
-    
-    .bulk-area { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #007bff; }
-    
-    /* Toggle Button Styling */
+    :root {
+        --primary: #4f46e5;
+        --primary-hover: #4338ca;
+        --bg: #f8fafc;
+        --card-bg: #ffffff;
+        --text-main: #1e293b;
+        --text-muted: #64748b;
+        --pending: #fefce8;
+        --pending-text: #854d0e;
+        --received: #f0fdf4;
+        --received-text: #166534;
+        --rts: #fef2f2;
+        --rts-text: #991b1b;
+        --unsigned: #eff6ff;
+        --unsigned-text: #1e40af;
+    }
+
+    body { 
+        font-family: 'Inter', sans-serif; 
+        margin: 0; 
+        padding: 0; 
+        background: var(--bg); 
+        color: var(--text-main); 
+    }
+
+    .header {
+        background: #1e293b;
+        color: white;
+        padding: 2rem 5%;
+        margin-bottom: -3rem;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 20px 50px; }
+
+    /* Dashboard Layout */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 20px;
+        margin-top: 10px;
+    }
+
+    .card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        padding: 20px;
+        border: 1px solid #e2e8f0;
+    }
+
+    /* Stats Styling */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    .stat-box {
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+    }
+    .stat-box small { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-box div { font-size: 24px; font-weight: 700; color: var(--primary); }
+
+    /* Form Styling */
     #toggleFormBtn {
-        background: #333; color: white; padding: 12px; width: 100%; border: none; 
-        text-align: left; font-size: 14px; cursor: pointer; border-radius: 8px; 
-        font-weight: bold; margin-bottom: 5px; display: block;
+        background: var(--primary);
+        color: white;
+        padding: 12px 20px;
+        width: 100%;
+        border: none;
+        text-align: left;
+        font-size: 14px;
+        cursor: pointer;
+        border-radius: 10px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        transition: background 0.2s;
     }
-    #toggleFormBtn:hover { background: #444; }
+    #toggleFormBtn:hover { background: var(--primary-hover); }
 
-    /* Collapsible Form Styling */
-    #formContent {
-        padding: 15px; background-color: white; border: 1px solid #ddd; 
-        border-radius: 8px; margin-bottom: 20px; display: block; 
+    #formContent { 
+        background: white; 
+        border-radius: 0 0 10px 10px; 
+        margin-top: -10px; 
+        border: 1px solid #e2e8f0;
+        border-top: none;
+        padding: 20px;
     }
 
-    /* Table Styles */
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
-    th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
-    .row-pending { background: #ffea7a; }
-    .row-received { background: #c8f7d2; }
-    .row-rts { background: #ffc7c7; }
-    .row-unsigned { background: #cfe1ff; }
+    input, select { 
+        width: 100%; 
+        padding: 10px 14px; 
+        margin-top: 8px; 
+        border: 1px solid #cbd5e1; 
+        border-radius: 8px; 
+        font-size: 14px;
+        transition: border 0.2s;
+    }
+    input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+
+    /* Table Styling */
+    .table-container {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        margin-top: 20px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f8fafc; padding: 12px 15px; text-align: left; font-size: 12px; text-transform: uppercase; color: var(--text-muted); }
+    td { padding: 15px; border-top: 1px solid #f1f5f9; font-size: 14px; }
     
-    .actor { color: blue; cursor: pointer; text-decoration: underline; font-weight: bold; }
-    .known-input { width: 100%; font-size: 12px; padding: 4px; border: none; background: transparent; }
-    .known-input:focus { background: #fff; border: 1px solid #ccc; }
-    
-    .deleteBtn { background: #b3261e; color: white; padding: 4px 8px; border: none; cursor: pointer; border-radius: 3px; }
-    
+    .badge {
+        padding: 4px 10px;
+        border-radius: 99px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .status-pending { background: var(--pending); color: var(--pending-text); }
+    .status-received { background: var(--received); color: var(--received-text); }
+    .status-rts { background: var(--rts); color: var(--rts-text); }
+    .status-unsigned { background: var(--unsigned); color: var(--unsigned-text); }
+
+    .actor-link { 
+        color: var(--primary); 
+        font-weight: 600; 
+        cursor: pointer; 
+        text-decoration: none; 
+    }
+    .actor-link:hover { text-decoration: underline; }
+
+    .delete-icon {
+        background: #fee2e2;
+        color: #ef4444;
+        border: none;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .delete-icon:hover { background: #ef4444; color: white; }
+
+    /* Modal Styling */
     #actorModal {
         display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        background: white; padding: 20px; border: 1px solid #666; box-shadow: 0 4px 25px rgba(0,0,0,0.4);
-        max-width: 90%; z-index: 1000; border-radius: 8px;
+        background: white; padding: 30px; border-radius: 16px; width: 450px;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); z-index: 2000;
+    }
+    .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:1999; }
+
+    .search-bar {
+        background: white;
+        border: 1px solid #e2e8f0;
+        padding: 10px 15px;
+        border-radius: 10px;
+        width: 300px;
+        margin-bottom: 15px;
     }
 </style>
 </head>
 <body>
 
-<h2>TTM Tracker</h2>
-
-<div class="bulk-area">
-    <strong>Bulk Upload (.csv)</strong><br>
-    <input type="file" id="csvFile" accept=".csv" style="width: auto; border: none;">
-    <button onclick="uploadCSV()" style="background:#007bff; color:white; padding: 8px 15px; border:none; cursor:pointer; border-radius:4px;">Upload Entries</button>
+<div class="header">
+    <h1 style="margin:0; font-size: 24px;">Collector Command Center</h1>
+    <p style="opacity: 0.8; margin-top: 5px;">Manage Autograph Tracking & Discovery</p>
 </div>
 
-<table class="summary">
-    <tr>
-        <td>Pending</td><td id="sumPending">0</td>
-        <td>Received</td><td id="sumReceived">0</td>
-        <td>RTS</td><td id="sumRTS">0</td>
-        <td>Unsigned</td><td id="sumUnsigned">0</td>
-    </tr>
-</table>
-<div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+<div class="container">
+    <div class="dashboard-grid">
+        <div class="main-content">
+            <div class="stats-row">
+                <div class="stat-box"><small>Pending</small><div id="sumPending">0</div></div>
+                <div class="stat-box"><small>Received</small><div id="sumReceived" style="color:#166534">0</div></div>
+                <div class="stat-box"><small>RTS</small><div id="sumRTS" style="color:#991b1b">0</div></div>
+                <div class="stat-box"><small>Unsigned</small><div id="sumUnsigned" style="color:#1e40af">0</div></div>
+            </div>
 
-<button type="button" id="toggleFormBtn" onclick="toggleForm()">▼ Add New Entry</button>
+            <button type="button" id="toggleFormBtn" onclick="toggleForm()">+ Add New Collector Entry</button>
+            <div id="formContent">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                    <div><label><small>Recipient Name</small></label><input id="f_name" placeholder="e.g. Tom Hanks"></div>
+                    <div><label><small>Role / Profession</small></label>
+                        <select id="f_role">
+                            <option value="Actor">Actor</option>
+                            <option value="Director">Director</option>
+                            <option value="Musician">Musician</option>
+                            <option value="Athlete">Athlete</option>
+                            <option value="Comedian">Comedian</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top:10px;"><label><small>Known For</small></label><input id="f_known" placeholder="e.g. Forrest Gump"></div>
+                <div style="margin-top:10px;"><label><small>Mailing Address</small></label><input id="f_address" placeholder="Full address..."></div>
+                <div style="margin-top:15px; display:flex; align-items:center; justify-content:space-between;">
+                    <div style="width:200px;"><label><small>Date Sent</small></label><input id="f_datesent" type="date"></div>
+                    <button type="button" onclick="addEntry()" style="background:#10b981; color:white; padding:12px 30px; border:none; border-radius:8px; cursor:pointer; font-weight:700; margin-top:20px;">Save Entry</button>
+                </div>
+            </div>
 
-<div id="formContent">
-    <input id="f_name" placeholder="Name">
-    <select id="f_role">
-        <option value="">Role Type</option>
-        <option value="Actor">Actor</option>
-        <option value="Director">Director</option>
-        <option value="Musician">Musician</option>
-        <option value="Comedian">Comedian</option>
-        <option value="Producer">Producer</option>
-        <option value="Coach">Coach</option>
-    </select>
-    <input id="f_known" placeholder="Known For">
-    <input id="f_address" placeholder="Address">
-    <div style="margin-top:10px;">
-        <label style="font-size:11px; font-weight: bold;">Date Sent</label>
-        <input id="f_datesent" type="date">
+            <div style="margin-top:30px; display:flex; justify-content:space-between; align-items:flex-end;">
+                <input id="search" class="search-bar" placeholder="🔍 Search collection..." oninput="sortAndRender()">
+            </div>
+
+            <div class="table-container">
+                <table>
+                <thead>
+                    <tr>
+                        <th>Recipient</th>
+                        <th>Known For</th>
+                        <th>Sent</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="card">
+                <h3 style="margin-top:0; font-size:16px;">Success Rate</h3>
+                <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+            </div>
+            
+            <div class="card" style="margin-top:20px;">
+                <h3 style="margin-top:0; font-size:16px;">Bulk Import</h3>
+                <p style="font-size:12px; color:var(--text-muted);">Upload .csv file to sync entries.</p>
+                <input type="file" id="csvFile" accept=".csv" style="font-size:11px; padding:5px;">
+                <button onclick="uploadCSV()" style="background:#334155; color:white; width:100%; padding:10px; border:none; border-radius:6px; cursor:pointer; margin-top:10px; font-weight:600;">Run Upload</button>
+            </div>
+        </div>
     </div>
-    <button type="button" onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:12px;margin-top:10px;border:none;cursor:pointer;border-radius:4px;font-weight:bold;">Save Entry</button>
 </div>
 
-<div style="margin: 20px 0 8px 0;">
-    <input id="search" placeholder="Search name or movie..." oninput="sortAndRender()" style="width: 250px;">
-</div>
-
-<table>
-<thead>
-    <tr>
-        <th>Added</th>
-        <th>Name</th>
-        <th>Role</th>
-        <th>Known For</th>
-        <th>Address</th>
-        <th>Sent</th>
-        <th>Received</th>
-        <th>Status</th>
-        <th></th>
-    </tr>
-</thead>
-<tbody id="tableBody"></tbody>
-</table>
-
+<div id="modalOverlay" class="modal-overlay" onclick="closeModal()"></div>
 <div id="actorModal">
-    <h3 id="modalName"></h3>
-    <div id="modalContent"></div>
-    <button onclick="closeModal()" style="margin-top:10px;">Close</button>
+    <h2 id="modalName" style="margin-top:0; color:var(--primary);"></h2>
+    <div id="modalContent" style="line-height:1.6; color:#475569;"></div>
+    <button onclick="closeModal()" style="margin-top:20px; padding:8px 16px; cursor:pointer;">Close Profile</button>
 </div>
 
 <script>
@@ -131,16 +265,15 @@ const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
 let data = [];
 let chart;
 
-// Toggle Form Visibility
 function toggleForm() {
     const content = document.getElementById("formContent");
     const btn = document.getElementById("toggleFormBtn");
     if (content.style.display === "none") {
         content.style.display = "block";
-        btn.innerText = "▼ Add New Entry";
+        btn.innerText = "▼ Hide Form";
     } else {
         content.style.display = "none";
-        btn.innerText = "▶ Add New Entry (Expand)";
+        btn.innerText = "+ Add New Collector Entry";
     }
 }
 
@@ -152,36 +285,29 @@ async function loadData() {
 }
 loadData();
 
-// Add Manual Entry
 async function addEntry() {
     const name = document.getElementById("f_name").value.trim();
     const address = document.getElementById("f_address").value.trim();
-    const dateSent = document.getElementById("f_datesent").value;
-
-    if (!name || !address) return alert("Name and Address are required!");
+    if (!name || !address) return alert("Missing Info");
 
     const { error } = await sb.from("Tracking").insert([{
         name,
         role_type: document.getElementById("f_role").value,
         known_for: document.getElementById("f_known").value.trim(),
         address,
-        date_sent: dateSent || null,
+        date_sent: document.getElementById("f_datesent").value || null,
         status: "pending"
     }]);
 
     if (!error) {
         document.querySelectorAll("#formContent input").forEach(i => i.value = "");
         loadData();
-    } else {
-        alert("Error saving: " + error.message);
     }
 }
 
-// Bulk Upload with Ghost-Row Filter
 async function uploadCSV() {
     const file = document.getElementById('csvFile').files[0];
-    if (!file) return alert("Please select a file first");
-    
+    if (!file) return alert("Select File");
     Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
@@ -189,21 +315,10 @@ async function uploadCSV() {
             const clean = res.data
                 .filter(row => row.name && row.name.trim() !== "") 
                 .map(r => ({
-                    name: r.name, 
-                    address: r.address || "", 
-                    role_type: r.role_type || "", 
-                    known_for: r.known_for || "", 
-                    date_sent: r.date_sent || null, 
-                    status: 'pending'
+                    name: r.name, address: r.address || "", role_type: r.role_type || "", 
+                    known_for: r.known_for || "", date_sent: r.date_sent || null, status: 'pending'
                 }));
-
-            if (clean.length > 0) {
-                const { error } = await sb.from("Tracking").insert(clean);
-                if (error) alert("Error: " + error.message);
-                else { alert("Uploaded " + clean.length + " entries!"); loadData(); }
-            } else {
-                alert("No valid names found in CSV.");
-            }
+            if (clean.length > 0) { await sb.from("Tracking").insert(clean); loadData(); }
         }
     });
 }
@@ -213,23 +328,22 @@ function sortAndRender() {
     const filtered = data.filter(d => (d.name||"").toLowerCase().includes(search) || (d.known_for||"").toLowerCase().includes(search));
     
     document.getElementById("tableBody").innerHTML = filtered.map(d => `
-        <tr class="row-${d.status || 'pending'}">
-            <td style="font-size:10px;">${d.created_at ? new Date(d.created_at).toLocaleDateString() : '-'}</td>
-            <td class="actor" data-name="${d.name}">${d.name || ''}</td>
-            <td>${d.role_type || ''}</td>
-            <td><input class="known-input" value="${d.known_for || ''}" onchange="updateKnown('${d.id}', this.value)"></td>
-            <td style="font-size:11px;">${d.address || ''}</td>
-            <td>${d.date_sent || ''}</td>
-            <td>${d.date_received || ''}</td>
+        <tr>
             <td>
-                <select onchange="updateStatus('${d.id}', this.value)" style="font-size:11px;">
+                <div class="actor-link" data-name="${d.name}">${d.name}</div>
+                <div style="font-size:11px; color:#94a3b8;">${d.role_type}</div>
+            </td>
+            <td><div style="font-size:13px; font-weight:500;">${d.known_for || '—'}</div></td>
+            <td style="font-size:12px; color:#64748b;">${d.date_sent || '—'}</td>
+            <td>
+                <select onchange="updateStatus('${d.id}', this.value)" class="badge status-${d.status}">
                     <option value="pending" ${d.status==='pending'?'selected':''}>Pending</option>
                     <option value="received" ${d.status==='received'?'selected':''}>Received</option>
                     <option value="rts" ${d.status==='rts'?'selected':''}>RTS</option>
                     <option value="unsigned" ${d.status==='unsigned'?'selected':''}>Unsigned</option>
                 </select>
             </td>
-            <td><button class="deleteBtn" onclick="deleteEntry('${d.id}')">✕</button></td>
+            <td><button class="delete-icon" onclick="deleteEntry('${d.id}')">✕</button></td>
         </tr>`).join("");
 }
 
@@ -240,15 +354,8 @@ async function updateStatus(id, status) {
     loadData();
 }
 
-async function updateKnown(id, val) {
-    await sb.from("Tracking").update({ known_for: val }).eq("id", id);
-}
-
 async function deleteEntry(id) {
-    if(confirm("Are you sure you want to delete this?")) {
-        await sb.from("Tracking").delete().eq("id", id);
-        loadData();
-    }
+    if(confirm("Delete this entry?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
 }
 
 function updateStats() {
@@ -261,25 +368,27 @@ function updateStats() {
     
     if (chart) chart.destroy();
     chart = new Chart(document.getElementById("pieChart"), {
-        type: "pie",
+        type: 'doughnut',
         data: {
             labels: ["Received", "Pending", "RTS", "Unsigned"],
             datasets: [{ 
                 data: [stats.received, stats.pending, stats.rts, stats.unsigned], 
-                backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] 
+                backgroundColor: ["#10b981","#fbbf24","#ef4444","#3b82f6"],
+                borderWidth: 0,
+                cutout: '70%'
             }]
         },
         options: { plugins: { legend: { display: false } } }
     });
 }
 
-// TMDB Modal
 document.addEventListener("click", async e => {
-    if (e.target.classList.contains("actor")) {
+    if (e.target.classList.contains("actor-link")) {
         const name = e.target.dataset.name;
+        document.getElementById("modalOverlay").style.display = "block";
         const modal = document.getElementById("actorModal");
         document.getElementById("modalName").textContent = name;
-        document.getElementById("modalContent").innerHTML = "Searching TMDB...";
+        document.getElementById("modalContent").innerHTML = "Accessing Bio...";
         modal.style.display = "block";
         
         try {
@@ -289,17 +398,16 @@ document.addEventListener("click", async e => {
                 const p = json.results[0];
                 const dRes = await fetch(`https://api.themoviedb.org/3/person/${p.id}?api_key=${TMDB_API_KEY}`);
                 const details = await dRes.json();
-                document.getElementById("modalContent").innerHTML = `<p>${details.biography.substring(0, 400)}...</p>`;
-            } else {
-                document.getElementById("modalContent").innerHTML = "No bio found.";
-            }
-        } catch (err) {
-            document.getElementById("modalContent").innerHTML = "Error fetching TMDB.";
-        }
+                document.getElementById("modalContent").innerHTML = `<p>${details.biography.substring(0, 600)}...</p>`;
+            } else { document.getElementById("modalContent").innerHTML = "No bio found."; }
+        } catch (err) { document.getElementById("modalContent").innerHTML = "Search unavailable."; }
     }
 });
 
-function closeModal() { document.getElementById("actorModal").style.display = "none"; }
+function closeModal() { 
+    document.getElementById("actorModal").style.display = "none"; 
+    document.getElementById("modalOverlay").style.display = "none";
+}
 </script>
 </body>
 </html>
