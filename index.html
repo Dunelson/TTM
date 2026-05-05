@@ -168,23 +168,50 @@ async function addEntry() {
 async function uploadCSV() {
   const file = document.getElementById('csvFile').files[0];
   if (!file) return alert("Select a CSV file.");
-  
+
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
     complete: async function(results) {
-      const processed = results.data.map(row => ({
-        name: row.name || null,
-        address: row.address || null,
-        role_type: row.role_type || null,
-        known_for: row.known_for || null,
-        date_sent: row.date_sent || null,
-        status: row.status || 'pending'
-      }));
-      
+      const processed = results.data.map(row => {
+        // Flexible date_sent detection
+        let dateSent = row.date_sent || row['Date Sent'] || row.datesent || row['date sent'] || null;
+        
+        // Basic date cleanup
+        if (dateSent) {
+          // Try to convert common formats to YYYY-MM-DD
+          const d = new Date(dateSent);
+          if (!isNaN(d)) {
+            dateSent = d.toISOString().split('T')[0];
+          }
+        }
+
+        return {
+          name: row.name || row.Name || null,
+          address: row.address || row.Address || null,
+          role_type: row.role_type || row.Role || row['Role Type'] || null,
+          known_for: row.known_for || row['Known For'] || row.knownfor || null,
+          date_sent: dateSent,
+          status: (row.status || row.Status || 'pending').toLowerCase()
+        };
+      }).filter(row => row.name && row.address); // Only keep rows with name + address
+
+      console.log("Processed rows:", processed); // ← Helpful for debugging
+
+      if (processed.length === 0) {
+        return alert("No valid rows found in CSV.");
+      }
+
       const { error } = await sb.from("Tracking").insert(processed);
-      if (error) console.error(error);
-      loadData();
+      
+      if (error) {
+        console.error("Insert error:", error);
+        alert("Upload failed: " + error.message);
+      } else {
+        alert(`Successfully uploaded ${processed.length} entries!`);
+        document.getElementById('csvFile').value = ''; // clear file input
+        loadData();
+      }
     }
   });
 }
