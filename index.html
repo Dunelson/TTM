@@ -19,54 +19,51 @@
 
     body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: var(--bg); color: var(--text-main); }
     .header { background: #1e293b; color: white; padding: 25px 5%; border-bottom: 4px solid var(--primary); }
-    .container { max-width: 1300px; margin: 20px auto; padding: 0 20px; }
+    .container { max-width: 1400px; margin: 20px auto; padding: 0 20px; }
 
-    /* Layout Grid */
     .dashboard-grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
 
-    /* Stats & Cards */
     .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-    .stat-box { background: white; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .stat-box { background: white; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
     .stat-box div { font-size: 22px; font-weight: 700; color: var(--primary); }
     .sidebar-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-    /* Collapsible Form */
     #toggleFormBtn { background: var(--primary); color: white; padding: 12px; width: 100%; border: none; text-align: left; font-size: 14px; cursor: pointer; border-radius: 10px; font-weight: 600; }
     #formContent { background: white; border: 1px solid #e2e8f0; border-top: none; padding: 20px; border-radius: 0 0 10px 10px; margin-bottom: 20px; }
     
-    input, select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+    input, select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; }
     .form-input { width: 100%; margin-top: 5px; box-sizing: border-box; }
 
-    /* Table */
     .table-container { background: white; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; margin-top: 15px; }
     table { width: 100%; border-collapse: collapse; }
     th { background: #f1f5f9; padding: 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; }
-    td { padding: 12px; border-top: 1px solid #f1f5f9; font-size: 13px; }
+    td { padding: 10px 12px; border-top: 1px solid #f1f5f9; font-size: 13px; }
 
     tr.is-received td { background-color: var(--received-bg) !important; color: var(--received-text); }
 
-    .inline-edit { border: 1px solid transparent; background: transparent; width: 100%; padding: 4px; border-radius: 4px; }
-    .inline-edit:hover, .inline-edit:focus { border: 1px solid #ccc; background: white; outline: none; }
+    .actor-link { color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: underline; }
+    .inline-edit { border: 1px solid transparent; background: transparent; width: 100%; font-size: 13px; }
+    .inline-edit:hover { border: 1px solid #ccc; background: white; }
     
-    .badge { padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; }
+    .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; border: none; }
     .status-pending { background: #fefce8; color: #854d0e; }
     .status-received { background: #166534; color: white; }
     .status-rts { background: #fee2e2; color: #991b1b; }
     .status-unsigned { background: #eff6ff; color: #1e40af; }
 
-    .delete-btn { color: #ef4444; background: none; border: none; cursor: pointer; font-size: 16px; padding: 0 10px; }
-    .actor-link { color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: none; }
+    /* Modal Styling */
+    #infoModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 12px; width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 1000; }
+    #modalOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
 </style>
 </head>
 <body>
 
 <div class="header">
-    <h1 style="margin:0; font-size: 22px; letter-spacing: -0.5px;">Nelson Autograph Tracking</h1>
+    <h1 style="margin:0; font-size: 22px;">Nelson Autograph Tracking</h1>
 </div>
 
 <div class="container">
     <div class="dashboard-grid">
-        
         <div class="main-content">
             <div class="stats-row">
                 <div class="stat-box"><small>Pending</small><div id="sumPending">0</div></div>
@@ -75,33 +72,28 @@
                 <div class="stat-box"><small>Unsigned</small><div id="sumUnsigned" style="color:#1e40af">0</div></div>
             </div>
 
-            <button type="button" id="toggleFormBtn" onclick="toggleForm()">+ Add New Collector Entry</button>
-            <div id="formContent">
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px;">
-                    <div><label><small>Name</small></label><input id="f_name" class="form-input" placeholder="Name"></div>
-                    <div><label><small>Role</small></label>
-                        <select id="f_role" class="form-input">
-                            <option value="Actor">Actor</option>
-                            <option value="Director">Director</option>
-                            <option value="Producer">Producer</option>
-                            <option value="Writer">Writer</option>
-                            <option value="Voice Actor">Voice Actor</option>
-                            <option value="Musician">Musician</option>
-                            <option value="Athlete">Athlete</option>
-                        </select>
-                    </div>
-                    <div><label><small>Known For</small></label><input id="f_known" class="form-input" placeholder="Movie/Show"></div>
+            <button type="button" id="toggleFormBtn" onclick="toggleForm()">+ Add New Entry</button>
+            <div id="formContent" style="display:none;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                    <input id="f_name" class="form-input" placeholder="Name">
+                    <select id="f_role" class="form-input">
+                        <option value="Actor">Actor</option>
+                        <option value="Director">Director</option>
+                        <option value="Producer">Producer</option>
+                        <option value="Writer">Writer</option>
+                        <option value="Voice Actor">Voice Actor</option>
+                        <option value="Musician">Musician</option>
+                    </select>
+                    <input id="f_known" class="form-input" placeholder="Known For">
                 </div>
-                <div style="display:grid; grid-template-columns: 2fr 1fr; gap:15px; margin-top:10px;">
-                    <div><label><small>Mailing Address</small></label><input id="f_address" class="form-input" placeholder="Address"></div>
-                    <div><label><small>Date Sent</small></label><input id="f_datesent" class="form-input" type="date"></div>
-                </div>
-                <button type="button" onclick="addEntry()" style="background:#10b981; color:white; width:100%; padding:12px; border:none; border-radius:8px; cursor:pointer; font-weight:700; margin-top:15px;">Save Entry</button>
+                <div style="margin-top:10px;"><input id="f_address" class="form-input" placeholder="Mailing Address"></div>
+                <div style="margin-top:10px;"><input id="f_datesent" class="form-input" type="date"></div>
+                <button onclick="addEntry()" style="background:#10b981; color:white; width:100%; padding:10px; border:none; border-radius:6px; cursor:pointer; margin-top:10px; font-weight:700;">Save Entry</button>
             </div>
 
-            <div style="display:flex; gap:10px; margin: 25px 0 10px;">
-                <input id="search" style="flex:1;" placeholder="🔍 Search collection..." oninput="sortAndRender()">
-                <select id="sortBy" onchange="sortAndRender()" style="min-width: 180px;">
+            <div style="display:flex; gap:10px; margin: 20px 0;">
+                <input id="search" style="flex:1;" placeholder="🔍 Search..." oninput="sortAndRender()">
+                <select id="sortBy" onchange="sortAndRender()">
                     <option value="created_at">Sort: Recently Added</option>
                     <option value="name">Sort: Name (A-Z)</option>
                     <option value="date_sent">Sort: Date Sent</option>
@@ -115,6 +107,7 @@
                         <tr>
                             <th>Recipient</th>
                             <th>Known For</th>
+                            <th>Address Sent To</th>
                             <th>Sent</th>
                             <th>Received</th>
                             <th>Status</th>
@@ -128,22 +121,28 @@
 
         <div class="sidebar">
             <div class="sidebar-card">
-                <h3 style="margin:0 0 15px 0; font-size:14px; text-transform:uppercase; color:#64748b;">Collection Stats</h3>
-                <canvas id="pieChart" width="250" height="250"></canvas>
+                <h3 style="margin:0 0 10px 0; font-size:12px; color:#64748b; text-transform:uppercase;">Success Rate</h3>
+                <canvas id="pieChart"></canvas>
             </div>
-
             <div class="sidebar-card" style="margin-top:20px;">
-                <h3 style="margin:0 0 10px 0; font-size:14px; text-transform:uppercase; color:#64748b;">Bulk Import</h3>
-                <input type="file" id="csvFile" accept=".csv" style="font-size:11px; width:100%;">
-                <button onclick="uploadCSV()" style="background:#334155; color:white; width:100%; padding:8px; border:none; border-radius:6px; cursor:pointer; margin-top:10px; font-weight:600;">Upload CSV</button>
+                <h3 style="margin:0 0 10px 0; font-size:12px; color:#64748b; text-transform:uppercase;">Import CSV</h3>
+                <input type="file" id="csvFile" style="font-size:11px;">
+                <button onclick="uploadCSV()" style="width:100%; padding:8px; margin-top:10px; cursor:pointer;">Upload</button>
             </div>
         </div>
-
     </div>
+</div>
+
+<div id="modalOverlay" onclick="closeModal()"></div>
+<div id="infoModal">
+    <h3 id="modalName" style="margin-top:0; color:var(--primary);"></h3>
+    <p id="modalBio" style="font-size:14px; line-height:1.5; color:#475569;"></p>
+    <button onclick="closeModal()" style="padding:8px 16px; cursor:pointer; border-radius:6px; border:1px solid #ddd;">Close</button>
 </div>
 
 <script>
 const sb = window.supabase.createClient("https://aeezsewfoozizduzuidv.supabase.co", "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz");
+const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
 let data = [];
 let chart;
 
@@ -161,28 +160,21 @@ async function loadData() {
 loadData();
 
 async function addEntry() {
-    const name = document.getElementById("f_name").value.trim();
-    const address = document.getElementById("f_address").value.trim();
-    if (!name || !address) return alert("Name & Address required.");
     await sb.from("Tracking").insert([{
-        name, address, 
+        name: document.getElementById("f_name").value,
+        address: document.getElementById("f_address").value,
         role_type: document.getElementById("f_role").value,
         known_for: document.getElementById("f_known").value,
         date_sent: document.getElementById("f_datesent").value || null,
         status: "pending"
     }]);
-    document.querySelectorAll("#formContent input").forEach(i => i.value = "");
     loadData();
 }
 
 function sortAndRender() {
     const search = document.getElementById("search").value.toLowerCase();
     const sortBy = document.getElementById("sortBy").value;
-    
-    let filtered = data.filter(d => 
-        (d.name||"").toLowerCase().includes(search) || 
-        (d.known_for||"").toLowerCase().includes(search)
-    );
+    let filtered = data.filter(d => (d.name||"").toLowerCase().includes(search));
 
     filtered.sort((a, b) => {
         if (sortBy === "name") return (a.name||"").localeCompare(b.name||"");
@@ -190,18 +182,14 @@ function sortAndRender() {
         if (sortBy === "date_received") return (b.date_received||"").localeCompare(a.date_received||"");
         return (b.created_at||"").localeCompare(a.created_at||"");
     });
-    
-    document.getElementById("tableBody").innerHTML = filtered.map(d => {
-        const isReceived = d.status === 'received' ? 'is-received' : '';
-        return `
-        <tr class="${isReceived}">
-            <td>
-                <div class="actor-link" onclick="window.open('https://www.google.com/search?q=${d.name}+autograph+address', '_blank')">${d.name}</div>
-                <div style="font-size:10px; opacity:0.6;">${d.role_type}</div>
-            </td>
+
+    document.getElementById("tableBody").innerHTML = filtered.map(d => `
+        <tr class="${d.status === 'received' ? 'is-received' : ''}">
+            <td class="actor-link" onclick="openModal('${d.name}')">${d.name}</td>
             <td><input class="inline-edit" value="${d.known_for || ''}" onchange="updateField('${d.id}', 'known_for', this.value)"></td>
-            <td style="font-size:12px;">${d.date_sent || '—'}</td>
-            <td><input type="date" class="inline-edit" style="font-size:11px;" value="${d.date_received || ''}" onchange="updateField('${d.id}', 'date_received', this.value)"></td>
+            <td style="font-size:11px;">${d.address || '—'}</td>
+            <td>${d.date_sent || '—'}</td>
+            <td><input type="date" class="inline-edit" value="${d.date_received || ''}" onchange="updateField('${d.id}', 'date_received', this.value)"></td>
             <td>
                 <select onchange="updateStatus('${d.id}', this.value)" class="badge status-${d.status}">
                     <option value="pending" ${d.status==='pending'?'selected':''}>Pending</option>
@@ -210,14 +198,35 @@ function sortAndRender() {
                     <option value="unsigned" ${d.status==='unsigned'?'selected':''}>Unsigned</option>
                 </select>
             </td>
-            <td><button class="delete-btn" onclick="deleteEntry('${d.id}')">✕</button></td>
-        </tr>`}).join("");
+            <td><button onclick="deleteEntry('${d.id}')" style="color:red; background:none; border:none; cursor:pointer;">✕</button></td>
+        </tr>`).join("");
+}
+
+async function openModal(name) {
+    document.getElementById("modalOverlay").style.display = "block";
+    document.getElementById("infoModal").style.display = "block";
+    document.getElementById("modalName").innerText = name;
+    document.getElementById("modalBio").innerText = "Loading details...";
+    
+    const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`);
+    const json = await res.json();
+    if (json.results && json.results[0]) {
+        const dRes = await fetch(`https://api.themoviedb.org/3/person/${json.results[0].id}?api_key=${TMDB_API_KEY}`);
+        const details = await dRes.json();
+        document.getElementById("modalBio").innerText = details.biography || "No bio found.";
+    } else {
+        document.getElementById("modalBio").innerText = "Person not found in database.";
+    }
+}
+
+function closeModal() {
+    document.getElementById("modalOverlay").style.display = "none";
+    document.getElementById("infoModal").style.display = "none";
 }
 
 async function updateField(id, field, val) {
     const obj = {}; obj[field] = val || null;
     await sb.from("Tracking").update(obj).eq("id", id);
-    loadData(); // Reload to refresh sorting if changed
 }
 
 async function updateStatus(id, status) {
@@ -228,7 +237,7 @@ async function updateStatus(id, status) {
 }
 
 async function deleteEntry(id) {
-    if(confirm("Permanently delete this entry?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
+    if(confirm("Delete?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
 }
 
 function updateStats() {
@@ -238,23 +247,12 @@ function updateStats() {
     document.getElementById("sumReceived").innerText = s.received;
     document.getElementById("sumRTS").innerText = s.rts;
     document.getElementById("sumUnsigned").innerText = s.unsigned;
-    
     if (chart) chart.destroy();
     chart = new Chart(document.getElementById("pieChart"), {
         type: 'doughnut',
         data: {
-            labels: ["Received", "Pending", "RTS", "Unsigned"],
-            datasets: [{ 
-                data: [s.received, s.pending, s.rts, s.unsigned], 
-                backgroundColor: ["#10b981","#fbbf24","#ef4444","#3b82f6"], 
-                borderWidth: 0,
-                cutout: '75%'
-            }]
-        },
-        options: { 
-            plugins: { 
-                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } 
-            } 
+            labels: ["Rec.", "Pen.", "RTS", "Uns."],
+            datasets: [{ data: [s.received, s.pending, s.rts, s.unsigned], backgroundColor: ["#10b981","#fbbf24","#ef4444","#3b82f6"], borderWidth: 0 }]
         }
     });
 }
