@@ -11,26 +11,24 @@
     body { font-family: Arial, sans-serif; margin: 0; padding: 15px; background: #f4f6f8; }
     input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
     
-    /* Stats & Charts */
     .summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
     .summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
     .chart-wrap { max-width: 200px; margin: 10px auto; }
     
-    /* Bulk Area */
     .bulk-area { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #007bff; }
     
-    /* THE TOGGLE BUTTON */
+    /* Toggle Button Styling */
     #toggleFormBtn {
         background: #333; color: white; padding: 12px; width: 100%; border: none; 
         text-align: left; font-size: 14px; cursor: pointer; border-radius: 8px; 
-        font-weight: bold; margin-bottom: 5px; display: block !important;
+        font-weight: bold; margin-bottom: 5px; display: block;
     }
     #toggleFormBtn:hover { background: #444; }
 
-    /* THE FORM BOX */
+    /* Collapsible Form Styling */
     #formContent {
         padding: 15px; background-color: white; border: 1px solid #ddd; 
-        border-radius: 8px; margin-bottom: 20px; display: block; /* Visible by default */
+        border-radius: 8px; margin-bottom: 20px; display: block; 
     }
 
     /* Table Styles */
@@ -40,7 +38,11 @@
     .row-received { background: #c8f7d2; }
     .row-rts { background: #ffc7c7; }
     .row-unsigned { background: #cfe1ff; }
+    
     .actor { color: blue; cursor: pointer; text-decoration: underline; font-weight: bold; }
+    .known-input { width: 100%; font-size: 12px; padding: 4px; border: none; background: transparent; }
+    .known-input:focus { background: #fff; border: 1px solid #ccc; }
+    
     .deleteBtn { background: #b3261e; color: white; padding: 4px 8px; border: none; cursor: pointer; border-radius: 3px; }
     
     #actorModal {
@@ -80,18 +82,20 @@
         <option value="Director">Director</option>
         <option value="Musician">Musician</option>
         <option value="Comedian">Comedian</option>
+        <option value="Producer">Producer</option>
+        <option value="Coach">Coach</option>
     </select>
     <input id="f_known" placeholder="Known For">
     <input id="f_address" placeholder="Address">
     <div style="margin-top:10px;">
-        <label style="font-size:11px;">Date Sent</label>
+        <label style="font-size:11px; font-weight: bold;">Date Sent</label>
         <input id="f_datesent" type="date">
     </div>
-    <button type="button" onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;margin-top:10px;border:none;cursor:pointer;border-radius:4px;font-weight:bold;">Save Entry</button>
+    <button type="button" onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:12px;margin-top:10px;border:none;cursor:pointer;border-radius:4px;font-weight:bold;">Save Entry</button>
 </div>
 
 <div style="margin: 20px 0 8px 0;">
-    <input id="search" placeholder="Search name or known for..." oninput="sortAndRender()" style="width: 250px;">
+    <input id="search" placeholder="Search name or movie..." oninput="sortAndRender()" style="width: 250px;">
 </div>
 
 <table>
@@ -114,7 +118,7 @@
 <div id="actorModal">
     <h3 id="modalName"></h3>
     <div id="modalContent"></div>
-    <button onclick="closeModal()">Close</button>
+    <button onclick="closeModal()" style="margin-top:10px;">Close</button>
 </div>
 
 <script>
@@ -127,7 +131,7 @@ const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
 let data = [];
 let chart;
 
-// TOGGLE LOGIC
+// Toggle Form Visibility
 function toggleForm() {
     const content = document.getElementById("formContent");
     const btn = document.getElementById("toggleFormBtn");
@@ -148,38 +152,58 @@ async function loadData() {
 }
 loadData();
 
+// Add Manual Entry
 async function addEntry() {
     const name = document.getElementById("f_name").value.trim();
     const address = document.getElementById("f_address").value.trim();
-    if (!name || !address) return alert("Name/Address Required");
+    const dateSent = document.getElementById("f_datesent").value;
+
+    if (!name || !address) return alert("Name and Address are required!");
 
     const { error } = await sb.from("Tracking").insert([{
         name,
         role_type: document.getElementById("f_role").value,
         known_for: document.getElementById("f_known").value.trim(),
         address,
-        date_sent: document.getElementById("f_datesent").value || null,
+        date_sent: dateSent || null,
         status: "pending"
     }]);
 
     if (!error) {
         document.querySelectorAll("#formContent input").forEach(i => i.value = "");
         loadData();
+    } else {
+        alert("Error saving: " + error.message);
     }
 }
 
+// Bulk Upload with Ghost-Row Filter
 async function uploadCSV() {
     const file = document.getElementById('csvFile').files[0];
-    if (!file) return;
+    if (!file) return alert("Please select a file first");
+    
     Papa.parse(file, {
         header: true,
+        skipEmptyLines: true,
         complete: async (res) => {
-            const clean = res.data.map(r => ({
-                name: r.name, address: r.address, role_type: r.role_type, 
-                known_for: r.known_for, date_sent: r.date_sent, status: 'pending'
-            }));
-            await sb.from("Tracking").insert(clean);
-            loadData();
+            const clean = res.data
+                .filter(row => row.name && row.name.trim() !== "") 
+                .map(r => ({
+                    name: r.name, 
+                    address: r.address || "", 
+                    role_type: r.role_type || "", 
+                    known_for: r.known_for || "", 
+                    date_sent: r.date_sent || null, 
+                    status: 'pending'
+                }));
+
+            if (clean.length > 0) {
+                const { error } = await sb.from("Tracking").insert(clean);
+                if (error) alert("Error: " + error.message);
+                else { alert("Uploaded " + clean.length + " entries!"); loadData(); }
+            } else {
+                alert("No valid names found in CSV.");
+            }
         }
     });
 }
@@ -187,22 +211,44 @@ async function uploadCSV() {
 function sortAndRender() {
     const search = document.getElementById("search").value.toLowerCase();
     const filtered = data.filter(d => (d.name||"").toLowerCase().includes(search) || (d.known_for||"").toLowerCase().includes(search));
+    
     document.getElementById("tableBody").innerHTML = filtered.map(d => `
         <tr class="row-${d.status || 'pending'}">
-            <td>${d.created_at ? new Date(d.created_at).toLocaleDateString() : '-'}</td>
+            <td style="font-size:10px;">${d.created_at ? new Date(d.created_at).toLocaleDateString() : '-'}</td>
             <td class="actor" data-name="${d.name}">${d.name || ''}</td>
             <td>${d.role_type || ''}</td>
-            <td>${d.known_for || ''}</td>
+            <td><input class="known-input" value="${d.known_for || ''}" onchange="updateKnown('${d.id}', this.value)"></td>
             <td style="font-size:11px;">${d.address || ''}</td>
             <td>${d.date_sent || ''}</td>
             <td>${d.date_received || ''}</td>
-            <td>${d.status || 'pending'}</td>
+            <td>
+                <select onchange="updateStatus('${d.id}', this.value)" style="font-size:11px;">
+                    <option value="pending" ${d.status==='pending'?'selected':''}>Pending</option>
+                    <option value="received" ${d.status==='received'?'selected':''}>Received</option>
+                    <option value="rts" ${d.status==='rts'?'selected':''}>RTS</option>
+                    <option value="unsigned" ${d.status==='unsigned'?'selected':''}>Unsigned</option>
+                </select>
+            </td>
             <td><button class="deleteBtn" onclick="deleteEntry('${d.id}')">✕</button></td>
         </tr>`).join("");
 }
 
+async function updateStatus(id, status) {
+    const update = { status };
+    if (status === "received") update.date_received = new Date().toISOString().split("T")[0];
+    await sb.from("Tracking").update(update).eq("id", id);
+    loadData();
+}
+
+async function updateKnown(id, val) {
+    await sb.from("Tracking").update({ known_for: val }).eq("id", id);
+}
+
 async function deleteEntry(id) {
-    if(confirm("Delete?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
+    if(confirm("Are you sure you want to delete this?")) {
+        await sb.from("Tracking").delete().eq("id", id);
+        loadData();
+    }
 }
 
 function updateStats() {
@@ -212,15 +258,46 @@ function updateStats() {
     document.getElementById("sumReceived").innerText = stats.received;
     document.getElementById("sumRTS").innerText = stats.rts;
     document.getElementById("sumUnsigned").innerText = stats.unsigned;
+    
     if (chart) chart.destroy();
     chart = new Chart(document.getElementById("pieChart"), {
         type: "pie",
         data: {
             labels: ["Received", "Pending", "RTS", "Unsigned"],
-            datasets: [{ data: [stats.received, stats.pending, stats.rts, stats.unsigned], backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] }]
-        }
+            datasets: [{ 
+                data: [stats.received, stats.pending, stats.rts, stats.unsigned], 
+                backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] 
+            }]
+        },
+        options: { plugins: { legend: { display: false } } }
     });
 }
+
+// TMDB Modal
+document.addEventListener("click", async e => {
+    if (e.target.classList.contains("actor")) {
+        const name = e.target.dataset.name;
+        const modal = document.getElementById("actorModal");
+        document.getElementById("modalName").textContent = name;
+        document.getElementById("modalContent").innerHTML = "Searching TMDB...";
+        modal.style.display = "block";
+        
+        try {
+            const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`);
+            const json = await res.json();
+            if (json.results && json.results.length > 0) {
+                const p = json.results[0];
+                const dRes = await fetch(`https://api.themoviedb.org/3/person/${p.id}?api_key=${TMDB_API_KEY}`);
+                const details = await dRes.json();
+                document.getElementById("modalContent").innerHTML = `<p>${details.biography.substring(0, 400)}...</p>`;
+            } else {
+                document.getElementById("modalContent").innerHTML = "No bio found.";
+            }
+        } catch (err) {
+            document.getElementById("modalContent").innerHTML = "Error fetching TMDB.";
+        }
+    }
+});
 
 function closeModal() { document.getElementById("actorModal").style.display = "none"; }
 </script>
