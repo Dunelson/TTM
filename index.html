@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Tracker Final</title>
+<title>TTM Tracker Pro</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
@@ -29,6 +29,17 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
   max-width: 90%; z-index: 1000; border-radius: 8px;
 }
 .bulk-area { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #007bff; }
+
+/* Collapsible Styling */
+.collapsible-btn {
+  background: #333; color: white; padding: 10px; width: 100%; border: none; text-align: left;
+  outline: none; font-size: 15px; cursor: pointer; border-radius: 8px 8px 0 0; font-weight: bold;
+}
+.collapsible-content {
+  padding: 15px; display: block; overflow: hidden; background-color: white;
+  border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px;
+}
+.active-toggle { border-radius: 8px; } /* For when it's closed */
 </style>
 </head>
 <body>
@@ -51,8 +62,8 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
 </table>
 <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
 
-<div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
-    <strong>Add New Entry</strong>
+<button type="button" class="collapsible-btn" id="toggleFormBtn" onclick="toggleForm()">▼ Add New Entry</button>
+<div class="collapsible-content" id="formContent">
     <input id="f_name" placeholder="Name">
     <select id="f_role">
       <option value="">Role Type</option>
@@ -61,6 +72,7 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
       <option value="Producer">Producer</option>
       <option value="Musician">Musician</option>
       <option value="Comedian">Comedian</option>
+      <option value="Coach">Coach</option>
     </select>
     <input id="f_known" placeholder="Known For">
     <input id="f_address" placeholder="Address">
@@ -72,6 +84,7 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
 </div>
 
 <div style="margin: 20px 0 8px 0;">
+  <strong>Search:</strong>
   <input id="search" placeholder="Search entries..." oninput="sortAndRender()" style="width: 250px;">
 </div>
 
@@ -110,6 +123,21 @@ const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
 let data = [];
 let chart;
 
+/* TOGGLE FUNCTION */
+function toggleForm() {
+    const content = document.getElementById("formContent");
+    const btn = document.getElementById("toggleFormBtn");
+    if (content.style.display === "none") {
+        content.style.display = "block";
+        btn.innerText = "▼ Add New Entry";
+        btn.classList.remove("active-toggle");
+    } else {
+        content.style.display = "none";
+        btn.innerText = "▶ Add New Entry (Click to Expand)";
+        btn.classList.add("active-toggle");
+    }
+}
+
 async function loadData() {
   const { data: rows, error } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
   if (error) console.error("Supabase Load Error:", error);
@@ -120,8 +148,6 @@ async function loadData() {
 loadData();
 
 async function addEntry() {
-  console.log("Add Entry button clicked!");
-  
   try {
     const name = document.getElementById("f_name").value.trim();
     const role_type = document.getElementById("f_role").value;
@@ -143,16 +169,11 @@ async function addEntry() {
       status: "pending"
     };
 
-    console.log("Attempting to insert:", payload);
-
-    const { data: result, error } = await sb.from("Tracking").insert([payload]).select();
+    const { error } = await sb.from("Tracking").insert([payload]);
     
     if(error) {
-      console.error("Supabase Insert Error:", error);
       alert("Database error: " + error.message);
     } else {
-      console.log("Insert successful:", result);
-      // Clear form
       document.getElementById("f_name").value = "";
       document.getElementById("f_role").value = "";
       document.getElementById("f_known").value = "";
@@ -168,50 +189,23 @@ async function addEntry() {
 async function uploadCSV() {
   const file = document.getElementById('csvFile').files[0];
   if (!file) return alert("Select a CSV file.");
-
+  
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
     complete: async function(results) {
-      const processed = results.data.map(row => {
-        // Flexible date_sent detection
-        let dateSent = row.date_sent || row['Date Sent'] || row.datesent || row['date sent'] || null;
-        
-        // Basic date cleanup
-        if (dateSent) {
-          // Try to convert common formats to YYYY-MM-DD
-          const d = new Date(dateSent);
-          if (!isNaN(d)) {
-            dateSent = d.toISOString().split('T')[0];
-          }
-        }
-
-        return {
-          name: row.name || row.Name || null,
-          address: row.address || row.Address || null,
-          role_type: row.role_type || row.Role || row['Role Type'] || null,
-          known_for: row.known_for || row['Known For'] || row.knownfor || null,
-          date_sent: dateSent,
-          status: (row.status || row.Status || 'pending').toLowerCase()
-        };
-      }).filter(row => row.name && row.address); // Only keep rows with name + address
-
-      console.log("Processed rows:", processed); // ← Helpful for debugging
-
-      if (processed.length === 0) {
-        return alert("No valid rows found in CSV.");
-      }
-
-      const { error } = await sb.from("Tracking").insert(processed);
+      const processed = results.data.map(row => ({
+        name: row.name || null,
+        address: row.address || null,
+        role_type: row.role_type || null,
+        known_for: row.known_for || null,
+        date_sent: row.date_sent || null,
+        status: row.status || 'pending'
+      }));
       
-      if (error) {
-        console.error("Insert error:", error);
-        alert("Upload failed: " + error.message);
-      } else {
-        alert(`Successfully uploaded ${processed.length} entries!`);
-        document.getElementById('csvFile').value = ''; // clear file input
-        loadData();
-      }
+      const { error } = await sb.from("Tracking").insert(processed);
+      if (error) console.error(error);
+      loadData();
     }
   });
 }
