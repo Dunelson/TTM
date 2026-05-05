@@ -219,7 +219,7 @@ function updateStats() {
     chart = new Chart(document.getElementById("pieChart"), {
         type: 'doughnut',
         data: {
-            labels: ["Rec.", "Pen.", "RTS", "Uns."],
+            labels: ["Received.", "Pending.", "RTS", "Unsigned"],
             datasets: [{ data: [s.received, s.pending, s.rts, s.unsigned], backgroundColor: ["#10b981","#fbbf24","#ef4444","#3b82f6"], borderWidth: 0 }]
         },
         options: { plugins: { legend: { position: 'bottom' } } }
