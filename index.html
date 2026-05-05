@@ -8,38 +8,46 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 <style>
-body { font-family: Arial, sans-serif; margin: 0; padding: 15px; background: #f4f6f8; }
-input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-.dateInput { width: 130px; font-size: 12px; padding: 4px; }
-.known-input { width: 180px; font-size: 12px; padding: 4px; }
-.summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
-.summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
-.chart-wrap { max-width: 220px; margin: 10px auto; }
-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; table-layout: auto; }
-th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
-.row-pending { background: #ffea7a; }
-.row-received { background: #c8f7d2; }
-.row-rts { background: #ffc7c7; }
-.row-unsigned { background: #cfe1ff; }
-.actor { color: blue; cursor: pointer; text-decoration: underline; font-weight: bold; }
-.deleteBtn { background: #b3261e; color: white; padding: 4px 8px; font-size: 11px; border: none; cursor: pointer; border-radius: 3px; }
-#actorModal {
-  display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  background: white; padding: 20px; border: 1px solid #666; box-shadow: 0 4px 25px rgba(0,0,0,0.4);
-  max-width: 90%; z-index: 1000; border-radius: 8px;
-}
-.bulk-area { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #007bff; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 15px; background: #f4f6f8; }
+    input, select { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    
+    /* Stats & Charts */
+    .summary { width: 70%; margin: 10px auto; background: white; text-align: center; border-collapse: collapse; }
+    .summary td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
+    .chart-wrap { max-width: 200px; margin: 10px auto; }
+    
+    /* Bulk Area */
+    .bulk-area { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #007bff; }
+    
+    /* THE TOGGLE BUTTON */
+    #toggleFormBtn {
+        background: #333; color: white; padding: 12px; width: 100%; border: none; 
+        text-align: left; font-size: 14px; cursor: pointer; border-radius: 8px; 
+        font-weight: bold; margin-bottom: 5px; display: block !important;
+    }
+    #toggleFormBtn:hover { background: #444; }
 
-/* Collapsible Styling */
-.collapsible-btn {
-  background: #333; color: white; padding: 10px; width: 100%; border: none; text-align: left;
-  outline: none; font-size: 15px; cursor: pointer; border-radius: 8px 8px 0 0; font-weight: bold;
-}
-.collapsible-content {
-  padding: 15px; display: block; overflow: hidden; background-color: white;
-  border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px;
-}
-.active-toggle { border-radius: 8px; } /* For when it's closed */
+    /* THE FORM BOX */
+    #formContent {
+        padding: 15px; background-color: white; border: 1px solid #ddd; 
+        border-radius: 8px; margin-bottom: 20px; display: block; /* Visible by default */
+    }
+
+    /* Table Styles */
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+    th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
+    .row-pending { background: #ffea7a; }
+    .row-received { background: #c8f7d2; }
+    .row-rts { background: #ffc7c7; }
+    .row-unsigned { background: #cfe1ff; }
+    .actor { color: blue; cursor: pointer; text-decoration: underline; font-weight: bold; }
+    .deleteBtn { background: #b3261e; color: white; padding: 4px 8px; border: none; cursor: pointer; border-radius: 3px; }
+    
+    #actorModal {
+        display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: white; padding: 20px; border: 1px solid #666; box-shadow: 0 4px 25px rgba(0,0,0,0.4);
+        max-width: 90%; z-index: 1000; border-radius: 8px;
+    }
 </style>
 </head>
 <body>
@@ -47,254 +55,174 @@ th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left
 <h2>TTM Tracker</h2>
 
 <div class="bulk-area">
-  <strong>Bulk Upload (.csv)</strong><br>
-  <input type="file" id="csvFile" accept=".csv" style="width: auto; font-size: 12px; border: none; padding: 0;">
-  <button onclick="uploadCSV()" style="background:#007bff; color:white; padding: 8px 15px; border:none; cursor:pointer; border-radius:4px; margin-top:10px;">Upload Entries</button>
+    <strong>Bulk Upload (.csv)</strong><br>
+    <input type="file" id="csvFile" accept=".csv" style="width: auto; border: none;">
+    <button onclick="uploadCSV()" style="background:#007bff; color:white; padding: 8px 15px; border:none; cursor:pointer; border-radius:4px;">Upload Entries</button>
 </div>
 
 <table class="summary">
-  <tr>
-    <td>Pending</td><td id="sumPending">0</td>
-    <td>Received</td><td id="sumReceived">0</td>
-    <td>RTS</td><td id="sumRTS">0</td>
-    <td>Unsigned</td><td id="sumUnsigned">0</td>
-  </tr>
+    <tr>
+        <td>Pending</td><td id="sumPending">0</td>
+        <td>Received</td><td id="sumReceived">0</td>
+        <td>RTS</td><td id="sumRTS">0</td>
+        <td>Unsigned</td><td id="sumUnsigned">0</td>
+    </tr>
 </table>
 <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
 
-<button type="button" class="collapsible-btn" id="toggleFormBtn" onclick="toggleForm()">▼ Add New Entry</button>
-<div class="collapsible-content" id="formContent">
+<button type="button" id="toggleFormBtn" onclick="toggleForm()">▼ Add New Entry</button>
+
+<div id="formContent">
     <input id="f_name" placeholder="Name">
     <select id="f_role">
-      <option value="">Role Type</option>
-      <option value="Actor">Actor</option>
-      <option value="Director">Director</option>
-      <option value="Producer">Producer</option>
-      <option value="Musician">Musician</option>
-      <option value="Comedian">Comedian</option>
-      <option value="Coach">Coach</option>
+        <option value="">Role Type</option>
+        <option value="Actor">Actor</option>
+        <option value="Director">Director</option>
+        <option value="Musician">Musician</option>
+        <option value="Comedian">Comedian</option>
     </select>
     <input id="f_known" placeholder="Known For">
     <input id="f_address" placeholder="Address">
     <div style="margin-top:10px;">
-        <label style="font-size:11px; display:block; margin-bottom:2px;">Date Sent</label>
+        <label style="font-size:11px;">Date Sent</label>
         <input id="f_datesent" type="date">
     </div>
     <button type="button" onclick="addEntry()" style="background:#28a745;color:white;width:100%;padding:10px;margin-top:10px;border:none;cursor:pointer;border-radius:4px;font-weight:bold;">Save Entry</button>
 </div>
 
 <div style="margin: 20px 0 8px 0;">
-  <strong>Search:</strong>
-  <input id="search" placeholder="Search entries..." oninput="sortAndRender()" style="width: 250px;">
+    <input id="search" placeholder="Search name or known for..." oninput="sortAndRender()" style="width: 250px;">
 </div>
 
 <table>
 <thead>
-<tr>
-  <th>Added</th>
-  <th>Name</th>
-  <th>Role</th>
-  <th>Known For</th>
-  <th>Address</th>
-  <th>Sent</th>
-  <th>Received</th>
-  <th>Status</th>
-  <th></th>
-</tr>
+    <tr>
+        <th>Added</th>
+        <th>Name</th>
+        <th>Role</th>
+        <th>Known For</th>
+        <th>Address</th>
+        <th>Sent</th>
+        <th>Received</th>
+        <th>Status</th>
+        <th></th>
+    </tr>
 </thead>
 <tbody id="tableBody"></tbody>
 </table>
 
 <div id="actorModal">
-  <h3 id="modalName"></h3>
-  <div id="modalContent">Loading...</div>
-  <button onclick="closeModal()">Close</button>
+    <h3 id="modalName"></h3>
+    <div id="modalContent"></div>
+    <button onclick="closeModal()">Close</button>
 </div>
 
 <script>
-console.log("Script loaded and running...");
-
 const sb = window.supabase.createClient(
-  "https://aeezsewfoozizduzuidv.supabase.co",
-  "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
+    "https://aeezsewfoozizduzuidv.supabase.co",
+    "sb_publishable_l4QEnXwOlTZJnsN6VE6jrA_tBa_2aoz"
 );
 
 const TMDB_API_KEY = "d4656a893658ed711bcadef18dc23300";
 let data = [];
 let chart;
 
-/* TOGGLE FUNCTION */
+// TOGGLE LOGIC
 function toggleForm() {
     const content = document.getElementById("formContent");
     const btn = document.getElementById("toggleFormBtn");
     if (content.style.display === "none") {
         content.style.display = "block";
         btn.innerText = "▼ Add New Entry";
-        btn.classList.remove("active-toggle");
     } else {
         content.style.display = "none";
-        btn.innerText = "▶ Add New Entry (Click to Expand)";
-        btn.classList.add("active-toggle");
+        btn.innerText = "▶ Add New Entry (Expand)";
     }
 }
 
 async function loadData() {
-  const { data: rows, error } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
-  if (error) console.error("Supabase Load Error:", error);
-  data = rows || [];
-  sortAndRender();
-  updateStats();
+    const { data: rows, error } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
+    data = rows || [];
+    sortAndRender();
+    updateStats();
 }
 loadData();
 
 async function addEntry() {
-  try {
     const name = document.getElementById("f_name").value.trim();
-    const role_type = document.getElementById("f_role").value;
-    const known_for = document.getElementById("f_known").value.trim();
     const address = document.getElementById("f_address").value.trim();
-    const date_sent = document.getElementById("f_datesent").value;
+    if (!name || !address) return alert("Name/Address Required");
 
-    if (!name || !address) {
-      alert("Name and Address are required!");
-      return;
+    const { error } = await sb.from("Tracking").insert([{
+        name,
+        role_type: document.getElementById("f_role").value,
+        known_for: document.getElementById("f_known").value.trim(),
+        address,
+        date_sent: document.getElementById("f_datesent").value || null,
+        status: "pending"
+    }]);
+
+    if (!error) {
+        document.querySelectorAll("#formContent input").forEach(i => i.value = "");
+        loadData();
     }
-
-    const payload = { 
-      name, 
-      role_type, 
-      known_for, 
-      address, 
-      date_sent: date_sent || null, 
-      status: "pending"
-    };
-
-    const { error } = await sb.from("Tracking").insert([payload]);
-    
-    if(error) {
-      alert("Database error: " + error.message);
-    } else {
-      document.getElementById("f_name").value = "";
-      document.getElementById("f_role").value = "";
-      document.getElementById("f_known").value = "";
-      document.getElementById("f_address").value = "";
-      document.getElementById("f_datesent").value = "";
-      loadData();
-    }
-  } catch (err) {
-    console.error("Critical JavaScript Error:", err);
-  }
 }
 
 async function uploadCSV() {
-  const file = document.getElementById('csvFile').files[0];
-  if (!file) return alert("Select a CSV file.");
-  
-  Papa.parse(file, {
-    header: true,
-    skipEmptyLines: true,
-    complete: async function(results) {
-      const processed = results.data.map(row => ({
-        name: row.name || null,
-        address: row.address || null,
-        role_type: row.role_type || null,
-        known_for: row.known_for || null,
-        date_sent: row.date_sent || null,
-        status: row.status || 'pending'
-      }));
-      
-      const { error } = await sb.from("Tracking").insert(processed);
-      if (error) console.error(error);
-      loadData();
-    }
-  });
+    const file = document.getElementById('csvFile').files[0];
+    if (!file) return;
+    Papa.parse(file, {
+        header: true,
+        complete: async (res) => {
+            const clean = res.data.map(r => ({
+                name: r.name, address: r.address, role_type: r.role_type, 
+                known_for: r.known_for, date_sent: r.date_sent, status: 'pending'
+            }));
+            await sb.from("Tracking").insert(clean);
+            loadData();
+        }
+    });
 }
-
-async function updateStatus(id, status) {
-  const update = { status };
-  if (status === "received") update.date_received = new Date().toISOString().split("T")[0];
-  await sb.from("Tracking").update(update).eq("id", id);
-  loadData();
-}
-
-async function updateKnownFor(id, val) { await sb.from("Tracking").update({ known_for: val }).eq("id", id); loadData(); }
-async function updateRoleType(id, val) { await sb.from("Tracking").update({ role_type: val }).eq("id", id); loadData(); }
-async function updateDate(id, val) { await sb.from("Tracking").update({ date_received: val || null }).eq("id", id); loadData(); }
-async function deleteEntry(id) { if (confirm("Delete?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); } }
 
 function sortAndRender() {
-  const search = document.getElementById("search").value.toLowerCase();
-  let filtered = data.filter(d => (d.name||"").toLowerCase().includes(search) || (d.known_for||"").toLowerCase().includes(search));
-  
-  const tbody = document.getElementById("tableBody");
-  tbody.innerHTML = filtered.map(d => `
-    <tr class="row-${d.status || 'pending'}">
-      <td style="font-size:10px;">${d.created_at ? new Date(d.created_at).toLocaleDateString() : '-'}</td>
-      <td class="actor" data-name="${d.name}" data-role="${d.role_type}" data-known="${d.known_for}">${d.name || ''}</td>
-      <td>
-        <select onchange="updateRoleType('${d.id}', this.value)" style="font-size:11px;">
-          <option value="">—</option>
-          <option value="Actor" ${d.role_type==="Actor"?"selected":""}>Actor</option>
-          <option value="Director" ${d.role_type==="Director"?"selected":""}>Director</option>
-          <option value="Producer" ${d.role_type==="Producer"?"selected":""}>Producer</option>
-          <option value="Musician" ${d.role_type==="Musician"?"selected":""}>Musician</option>
-          <option value="Comedian" ${d.role_type==="Comedian"?"selected":""}>Comedian</option>
-        </select>
-      </td>
-      <td><input class="known-input" value="${d.known_for||''}" onchange="updateKnownFor('${d.id}', this.value)"></td>
-      <td style="font-size:11px;">${d.address || ""}</td>
-      <td style="font-size:11px;">${d.date_sent || ""}</td>
-      <td><input class="dateInput" type="date" value="${d.date_received||''}" onchange="updateDate('${d.id}', this.value)"></td>
-      <td>
-        <select onchange="updateStatus('${d.id}', this.value)" style="font-size:11px;">
-          <option value="pending" ${d.status==="pending"?"selected":""}>Pending</option>
-          <option value="received" ${d.status==="received"?"selected":""}>Received</option>
-          <option value="rts" ${d.status==="rts"?"selected":""}>RTS</option>
-          <option value="unsigned" ${d.status==="unsigned"?"selected":""}>Unsigned</option>
-        </select>
-      </td>
-      <td><button class="deleteBtn" onclick="deleteEntry('${d.id}')">✕</button></td>
-    </tr>`).join("");
+    const search = document.getElementById("search").value.toLowerCase();
+    const filtered = data.filter(d => (d.name||"").toLowerCase().includes(search) || (d.known_for||"").toLowerCase().includes(search));
+    document.getElementById("tableBody").innerHTML = filtered.map(d => `
+        <tr class="row-${d.status || 'pending'}">
+            <td>${d.created_at ? new Date(d.created_at).toLocaleDateString() : '-'}</td>
+            <td class="actor" data-name="${d.name}">${d.name || ''}</td>
+            <td>${d.role_type || ''}</td>
+            <td>${d.known_for || ''}</td>
+            <td style="font-size:11px;">${d.address || ''}</td>
+            <td>${d.date_sent || ''}</td>
+            <td>${d.date_received || ''}</td>
+            <td>${d.status || 'pending'}</td>
+            <td><button class="deleteBtn" onclick="deleteEntry('${d.id}')">✕</button></td>
+        </tr>`).join("");
 }
 
-async function showActorInfo(name, role, known) {
-  const modal = document.getElementById("actorModal");
-  document.getElementById("modalName").textContent = name;
-  document.getElementById("modalContent").innerHTML = "Searching TMDB...";
-  modal.style.display = "block";
-  try {
-    let res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`);
-    let json = await res.json();
-    if (!json.results || !json.results.length) { document.getElementById("modalContent").innerHTML = "No results."; return; }
-    const p = json.results[0];
-    const dRes = await fetch(`https://api.themoviedb.org/3/person/${p.id}?api_key=${TMDB_API_KEY}&append_to_response=combined_credits`);
-    const details = await dRes.json();
-    document.getElementById("modalContent").innerHTML = `<p><strong>Bio:</strong> ${details.biography ? details.biography.substring(0, 300) + "..." : "N/A"}</p>`;
-  } catch (e) { document.getElementById("modalContent").innerHTML = "Error loading."; }
+async function deleteEntry(id) {
+    if(confirm("Delete?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
+}
+
+function updateStats() {
+    const stats = { pending: 0, received: 0, rts: 0, unsigned: 0 };
+    data.forEach(d => stats[d.status || "pending"]++);
+    document.getElementById("sumPending").innerText = stats.pending;
+    document.getElementById("sumReceived").innerText = stats.received;
+    document.getElementById("sumRTS").innerText = stats.rts;
+    document.getElementById("sumUnsigned").innerText = stats.unsigned;
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById("pieChart"), {
+        type: "pie",
+        data: {
+            labels: ["Received", "Pending", "RTS", "Unsigned"],
+            datasets: [{ data: [stats.received, stats.pending, stats.rts, stats.unsigned], backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] }]
+        }
+    });
 }
 
 function closeModal() { document.getElementById("actorModal").style.display = "none"; }
-
-document.addEventListener("click", e => {
-  if (e.target.classList.contains("actor")) showActorInfo(e.target.dataset.name, e.target.dataset.role, e.target.dataset.known);
-});
-
-function updateStats() {
-  const stats = { pending: 0, received: 0, rts: 0, unsigned: 0 };
-  data.forEach(d => stats[d.status || "pending"]++);
-  document.getElementById("sumPending").innerText = stats.pending;
-  document.getElementById("sumReceived").innerText = stats.received;
-  document.getElementById("sumRTS").innerText = stats.rts;
-  document.getElementById("sumUnsigned").innerText = stats.unsigned;
-  if (chart) chart.destroy();
-  chart = new Chart(document.getElementById("pieChart"), {
-    type: "pie",
-    data: {
-      labels: ["Received", "Pending", "RTS", "Unsigned"],
-      datasets: [{ data: [stats.received, stats.pending, stats.rts, stats.unsigned], backgroundColor: ["#1f8f3a","#ffea7a","#b3261e","#1e5bb3"] }]
-    }
-  });
-}
 </script>
 </body>
 </html>
