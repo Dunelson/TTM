@@ -16,168 +16,55 @@
         --card-bg: #ffffff;
         --text-main: #1e293b;
         --text-muted: #64748b;
-        --pending: #fefce8;
-        --pending-text: #854d0e;
-        --received: #f0fdf4;
+        --received-bg: #dcfce7;
         --received-text: #166534;
-        --rts: #fef2f2;
-        --rts-text: #991b1b;
-        --unsigned: #eff6ff;
-        --unsigned-text: #1e40af;
     }
 
-    body { 
-        font-family: 'Inter', sans-serif; 
-        margin: 0; 
-        padding: 0; 
-        background: var(--bg); 
-        color: var(--text-main); 
-    }
-
-    .header {
-        background: #1e293b;
-        color: white;
-        padding: 2rem 5%;
-        margin-bottom: -3rem;
-    }
-
+    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: var(--bg); color: var(--text-main); }
+    .header { background: #1e293b; color: white; padding: 2rem 5%; margin-bottom: -3rem; }
     .container { max-width: 1200px; margin: 0 auto; padding: 0 20px 50px; }
 
-    /* Dashboard Layout */
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: 1fr 300px;
-        gap: 20px;
-        margin-top: 10px;
-    }
+    .dashboard-grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; margin-top: 10px; }
+    .card { background: var(--card-bg); border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 20px; border: 1px solid #e2e8f0; }
 
-    .card {
-        background: var(--card-bg);
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        padding: 20px;
-        border: 1px solid #e2e8f0;
-    }
-
-    /* Stats Styling */
-    .stats-row {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 15px;
-        margin-bottom: 20px;
-    }
-    .stat-box {
-        background: white;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-    }
-    .stat-box small { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+    .stat-box { background: white; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
     .stat-box div { font-size: 24px; font-weight: 700; color: var(--primary); }
 
-    /* Form Styling */
-    #toggleFormBtn {
-        background: var(--primary);
-        color: white;
-        padding: 12px 20px;
-        width: 100%;
-        border: none;
-        text-align: left;
-        font-size: 14px;
-        cursor: pointer;
-        border-radius: 10px;
-        font-weight: 600;
-        margin-bottom: 10px;
-        transition: background 0.2s;
-    }
-    #toggleFormBtn:hover { background: var(--primary-hover); }
-
-    #formContent { 
-        background: white; 
-        border-radius: 0 0 10px 10px; 
-        margin-top: -10px; 
-        border: 1px solid #e2e8f0;
-        border-top: none;
-        padding: 20px;
-    }
-
-    input, select { 
-        width: 100%; 
-        padding: 10px 14px; 
-        margin-top: 8px; 
-        border: 1px solid #cbd5e1; 
-        border-radius: 8px; 
-        font-size: 14px;
-        transition: border 0.2s;
-    }
-    input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
-
-    /* Table Styling */
-    .table-container {
-        background: white;
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid #e2e8f0;
-        margin-top: 20px;
-    }
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #f8fafc; padding: 12px 15px; text-align: left; font-size: 12px; text-transform: uppercase; color: var(--text-muted); }
-    td { padding: 15px; border-top: 1px solid #f1f5f9; font-size: 14px; }
+    #toggleFormBtn { background: var(--primary); color: white; padding: 12px 20px; width: 100%; border: none; text-align: left; font-size: 14px; cursor: pointer; border-radius: 10px; font-weight: 600; margin-bottom: 10px; }
+    #formContent { background: white; border-radius: 0 0 10px 10px; margin-top: -10px; border: 1px solid #e2e8f0; border-top: none; padding: 20px; }
     
-    .badge {
-        padding: 4px 10px;
-        border-radius: 99px;
-        font-size: 12px;
-        font-weight: 600;
-    }
-    .status-pending { background: var(--pending); color: var(--pending-text); }
-    .status-received { background: var(--received); color: var(--received-text); }
-    .status-rts { background: var(--rts); color: var(--rts-text); }
-    .status-unsigned { background: var(--unsigned); color: var(--unsigned-text); }
+    input, select { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+    .form-input { width: 100%; margin-top: 8px; box-sizing: border-box; }
 
-    .actor-link { 
-        color: var(--primary); 
-        font-weight: 600; 
-        cursor: pointer; 
-        text-decoration: none; 
-    }
+    .table-container { background: white; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f8fafc; padding: 12px 15px; text-align: left; font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+    td { padding: 15px; border-top: 1px solid #f1f5f9; font-size: 14px; transition: background 0.2s; }
+
+    /* Green Row Logic */
+    tr.is-received td { background-color: var(--received-bg) !important; color: var(--received-text); }
+
+    .badge { padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .status-pending { background: #fefce8; color: #854d0e; }
+    .status-received { background: #166534; color: white; }
+    .status-rts { background: #fef2f2; color: #991b1b; }
+    .status-unsigned { background: #eff6ff; color: #1e40af; }
+
+    .actor-link { color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: none; }
     .actor-link:hover { text-decoration: underline; }
-
-    .delete-icon {
-        background: #fee2e2;
-        color: #ef4444;
-        border: none;
-        padding: 6px 10px;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: 0.2s;
-    }
-    .delete-icon:hover { background: #ef4444; color: white; }
-
-    /* Modal Styling */
-    #actorModal {
-        display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        background: white; padding: 30px; border-radius: 16px; width: 450px;
-        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); z-index: 2000;
-    }
+    
+    .delete-icon { background: #fee2e2; color: #ef4444; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+    
+    #actorModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 16px; width: 450px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); z-index: 2000; }
     .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:1999; }
-
-    .search-bar {
-        background: white;
-        border: 1px solid #e2e8f0;
-        padding: 10px 15px;
-        border-radius: 10px;
-        width: 300px;
-        margin-bottom: 15px;
-    }
 </style>
 </head>
 <body>
 
 <div class="header">
     <h1 style="margin:0; font-size: 24px;">Collector Command Center</h1>
-    <p style="opacity: 0.8; margin-top: 5px;">Manage Autograph Tracking & Discovery</p>
+    <p style="opacity: 0.8; margin-top: 5px;">Modern Autograph Management</p>
 </div>
 
 <div class="container">
@@ -193,27 +80,34 @@
             <button type="button" id="toggleFormBtn" onclick="toggleForm()">+ Add New Collector Entry</button>
             <div id="formContent">
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                    <div><label><small>Recipient Name</small></label><input id="f_name" placeholder="e.g. Tom Hanks"></div>
+                    <div><label><small>Recipient Name</small></label><input id="f_name" class="form-input" placeholder="e.g. Quentin Tarantino"></div>
                     <div><label><small>Role / Profession</small></label>
-                        <select id="f_role">
+                        <select id="f_role" class="form-input">
                             <option value="Actor">Actor</option>
                             <option value="Director">Director</option>
+                            <option value="Producer">Producer</option>
+                            <option value="Writer">Writer</option>
+                            <option value="Voice Actor">Voice Actor</option>
                             <option value="Musician">Musician</option>
                             <option value="Athlete">Athlete</option>
-                            <option value="Comedian">Comedian</option>
                         </select>
                     </div>
                 </div>
-                <div style="margin-top:10px;"><label><small>Known For</small></label><input id="f_known" placeholder="e.g. Forrest Gump"></div>
-                <div style="margin-top:10px;"><label><small>Mailing Address</small></label><input id="f_address" placeholder="Full address..."></div>
+                <div style="margin-top:10px;"><label><small>Known For</small></label><input id="f_known" class="form-input" placeholder="e.g. Pulp Fiction"></div>
+                <div style="margin-top:10px;"><label><small>Mailing Address</small></label><input id="f_address" class="form-input" placeholder="Full address..."></div>
                 <div style="margin-top:15px; display:flex; align-items:center; justify-content:space-between;">
-                    <div style="width:200px;"><label><small>Date Sent</small></label><input id="f_datesent" type="date"></div>
+                    <div style="width:200px;"><label><small>Date Sent</small></label><input id="f_datesent" class="form-input" type="date"></div>
                     <button type="button" onclick="addEntry()" style="background:#10b981; color:white; padding:12px 30px; border:none; border-radius:8px; cursor:pointer; font-weight:700; margin-top:20px;">Save Entry</button>
                 </div>
             </div>
 
-            <div style="margin-top:30px; display:flex; justify-content:space-between; align-items:flex-end;">
-                <input id="search" class="search-bar" placeholder="🔍 Search collection..." oninput="sortAndRender()">
+            <div style="margin-top:30px; display:flex; gap:10px; align-items:center;">
+                <input id="search" style="flex:1; background:white; border:1px solid #e2e8f0; padding:10px 15px; border-radius:10px;" placeholder="🔍 Search collection..." oninput="sortAndRender()">
+                <select id="sortBy" style="background:white; border:1px solid #e2e8f0; border-radius:10px;" onchange="sortAndRender()">
+                    <option value="created_at">Sort: Date Added</option>
+                    <option value="name">Sort: Name (A-Z)</option>
+                    <option value="date_sent">Sort: Date Sent</option>
+                </select>
             </div>
 
             <div class="table-container">
@@ -234,15 +128,14 @@
 
         <div class="sidebar">
             <div class="card">
-                <h3 style="margin-top:0; font-size:16px;">Success Rate</h3>
-                <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+                <h3 style="margin:0 0 15px 0; font-size:14px; text-transform:uppercase; color:var(--text-muted);">Success Chart</h3>
+                <canvas id="pieChart"></canvas>
             </div>
             
             <div class="card" style="margin-top:20px;">
-                <h3 style="margin-top:0; font-size:16px;">Bulk Import</h3>
-                <p style="font-size:12px; color:var(--text-muted);">Upload .csv file to sync entries.</p>
-                <input type="file" id="csvFile" accept=".csv" style="font-size:11px; padding:5px;">
-                <button onclick="uploadCSV()" style="background:#334155; color:white; width:100%; padding:10px; border:none; border-radius:6px; cursor:pointer; margin-top:10px; font-weight:600;">Run Upload</button>
+                <h3 style="margin:0 0 10px 0; font-size:14px; text-transform:uppercase; color:var(--text-muted);">Bulk Import</h3>
+                <input type="file" id="csvFile" accept=".csv" style="font-size:11px; margin-bottom:10px; width:100%;">
+                <button onclick="uploadCSV()" style="background:#334155; color:white; width:100%; padding:10px; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Upload CSV</button>
             </div>
         </div>
     </div>
@@ -251,8 +144,8 @@
 <div id="modalOverlay" class="modal-overlay" onclick="closeModal()"></div>
 <div id="actorModal">
     <h2 id="modalName" style="margin-top:0; color:var(--primary);"></h2>
-    <div id="modalContent" style="line-height:1.6; color:#475569;"></div>
-    <button onclick="closeModal()" style="margin-top:20px; padding:8px 16px; cursor:pointer;">Close Profile</button>
+    <div id="modalContent" style="line-height:1.6; color:#475569; max-height:300px; overflow-y:auto;"></div>
+    <button onclick="closeModal()" style="margin-top:20px; padding:10px 20px; cursor:pointer; border-radius:8px; border:1px solid #ddd; background:#f8fafc;">Close</button>
 </div>
 
 <script>
@@ -268,17 +161,13 @@ let chart;
 function toggleForm() {
     const content = document.getElementById("formContent");
     const btn = document.getElementById("toggleFormBtn");
-    if (content.style.display === "none") {
-        content.style.display = "block";
-        btn.innerText = "▼ Hide Form";
-    } else {
-        content.style.display = "none";
-        btn.innerText = "+ Add New Collector Entry";
-    }
+    const isHidden = content.style.display === "none";
+    content.style.display = isHidden ? "block" : "none";
+    btn.innerText = isHidden ? "▼ Hide Form" : "+ Add New Collector Entry";
 }
 
 async function loadData() {
-    const { data: rows, error } = await sb.from("Tracking").select("*").order("created_at", { ascending: false });
+    const { data: rows, error } = await sb.from("Tracking").select("*");
     data = rows || [];
     sortAndRender();
     updateStats();
@@ -307,17 +196,15 @@ async function addEntry() {
 
 async function uploadCSV() {
     const file = document.getElementById('csvFile').files[0];
-    if (!file) return alert("Select File");
+    if (!file) return;
     Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
         complete: async (res) => {
-            const clean = res.data
-                .filter(row => row.name && row.name.trim() !== "") 
-                .map(r => ({
-                    name: r.name, address: r.address || "", role_type: r.role_type || "", 
-                    known_for: r.known_for || "", date_sent: r.date_sent || null, status: 'pending'
-                }));
+            const clean = res.data.filter(row => row.name && row.name.trim() !== "").map(r => ({
+                name: r.name, address: r.address || "", role_type: r.role_type || "", 
+                known_for: r.known_for || "", date_sent: r.date_sent || null, status: 'pending'
+            }));
             if (clean.length > 0) { await sb.from("Tracking").insert(clean); loadData(); }
         }
     });
@@ -325,16 +212,31 @@ async function uploadCSV() {
 
 function sortAndRender() {
     const search = document.getElementById("search").value.toLowerCase();
-    const filtered = data.filter(d => (d.name||"").toLowerCase().includes(search) || (d.known_for||"").toLowerCase().includes(search));
+    const sortBy = document.getElementById("sortBy").value;
     
-    document.getElementById("tableBody").innerHTML = filtered.map(d => `
-        <tr>
+    // Search filter
+    let filtered = data.filter(d => 
+        (d.name||"").toLowerCase().includes(search) || 
+        (d.known_for||"").toLowerCase().includes(search)
+    );
+
+    // Sorting logic
+    filtered.sort((a, b) => {
+        if (sortBy === "name") return (a.name||"").localeCompare(b.name||"");
+        if (sortBy === "date_sent") return (b.date_sent||"").localeCompare(a.date_sent||"");
+        return (b.created_at||"").localeCompare(a.created_at||""); // Default
+    });
+    
+    document.getElementById("tableBody").innerHTML = filtered.map(d => {
+        const isReceived = d.status === 'received' ? 'is-received' : '';
+        return `
+        <tr class="${isReceived}">
             <td>
                 <div class="actor-link" data-name="${d.name}">${d.name}</div>
-                <div style="font-size:11px; color:#94a3b8;">${d.role_type}</div>
+                <div style="font-size:11px; opacity:0.7;">${d.role_type || 'Unknown'}</div>
             </td>
             <td><div style="font-size:13px; font-weight:500;">${d.known_for || '—'}</div></td>
-            <td style="font-size:12px; color:#64748b;">${d.date_sent || '—'}</td>
+            <td style="font-size:12px; opacity:0.8;">${d.date_sent || '—'}</td>
             <td>
                 <select onchange="updateStatus('${d.id}', this.value)" class="badge status-${d.status}">
                     <option value="pending" ${d.status==='pending'?'selected':''}>Pending</option>
@@ -344,7 +246,7 @@ function sortAndRender() {
                 </select>
             </td>
             <td><button class="delete-icon" onclick="deleteEntry('${d.id}')">✕</button></td>
-        </tr>`).join("");
+        </tr>`}).join("");
 }
 
 async function updateStatus(id, status) {
@@ -355,7 +257,7 @@ async function updateStatus(id, status) {
 }
 
 async function deleteEntry(id) {
-    if(confirm("Delete this entry?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
+    if(confirm("Delete entry?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
 }
 
 function updateStats() {
@@ -370,15 +272,15 @@ function updateStats() {
     chart = new Chart(document.getElementById("pieChart"), {
         type: 'doughnut',
         data: {
-            labels: ["Received", "Pending", "RTS", "Unsigned"],
+            labels: ["Rec.", "Pen.", "RTS", "Uns."],
             datasets: [{ 
                 data: [stats.received, stats.pending, stats.rts, stats.unsigned], 
                 backgroundColor: ["#10b981","#fbbf24","#ef4444","#3b82f6"],
                 borderWidth: 0,
-                cutout: '70%'
+                cutout: '75%'
             }]
         },
-        options: { plugins: { legend: { display: false } } }
+        options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } } }
     });
 }
 
@@ -388,7 +290,7 @@ document.addEventListener("click", async e => {
         document.getElementById("modalOverlay").style.display = "block";
         const modal = document.getElementById("actorModal");
         document.getElementById("modalName").textContent = name;
-        document.getElementById("modalContent").innerHTML = "Accessing Bio...";
+        document.getElementById("modalContent").innerHTML = "Searching Database...";
         modal.style.display = "block";
         
         try {
@@ -398,9 +300,9 @@ document.addEventListener("click", async e => {
                 const p = json.results[0];
                 const dRes = await fetch(`https://api.themoviedb.org/3/person/${p.id}?api_key=${TMDB_API_KEY}`);
                 const details = await dRes.json();
-                document.getElementById("modalContent").innerHTML = `<p>${details.biography.substring(0, 600)}...</p>`;
-            } else { document.getElementById("modalContent").innerHTML = "No bio found."; }
-        } catch (err) { document.getElementById("modalContent").innerHTML = "Search unavailable."; }
+                document.getElementById("modalContent").innerHTML = `<p>${details.biography || "No bio found."}</p>`;
+            } else { document.getElementById("modalContent").innerHTML = "Not found."; }
+        } catch (err) { document.getElementById("modalContent").innerHTML = "Error."; }
     }
 });
 
