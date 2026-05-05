@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TTM Tracker Pro</title>
+<title>Nelson Autograph Tracking</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
@@ -18,110 +18,127 @@
     }
 
     body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: var(--bg); color: var(--text-main); }
-    .header { background: #1e293b; color: white; padding: 20px 5%; }
+    .header { background: #1e293b; color: white; padding: 25px 5%; border-bottom: 4px solid var(--primary); }
     .container { max-width: 1300px; margin: 20px auto; padding: 0 20px; }
 
+    /* Layout Grid */
+    .dashboard-grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+
+    /* Stats & Cards */
     .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
     .stat-box { background: white; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .stat-box div { font-size: 22px; font-weight: 700; color: var(--primary); }
+    .sidebar-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
     /* Collapsible Form */
     #toggleFormBtn { background: var(--primary); color: white; padding: 12px; width: 100%; border: none; text-align: left; font-size: 14px; cursor: pointer; border-radius: 10px; font-weight: 600; }
     #formContent { background: white; border: 1px solid #e2e8f0; border-top: none; padding: 20px; border-radius: 0 0 10px 10px; margin-bottom: 20px; }
     
-    input, select { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; }
+    input, select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
     .form-input { width: 100%; margin-top: 5px; box-sizing: border-box; }
 
-    /* Table Styles */
-    .table-container { background: white; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+    /* Table */
+    .table-container { background: white; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; margin-top: 15px; }
     table { width: 100%; border-collapse: collapse; }
     th { background: #f1f5f9; padding: 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; }
-    td { padding: 10px 12px; border-top: 1px solid #f1f5f9; font-size: 13px; }
+    td { padding: 12px; border-top: 1px solid #f1f5f9; font-size: 13px; }
 
-    /* Green Highlight */
     tr.is-received td { background-color: var(--received-bg) !important; color: var(--received-text); }
 
-    .actor-link { color: var(--primary); font-weight: 600; cursor: pointer; }
-    .inline-edit { border: 1px solid transparent; background: transparent; width: 100%; }
-    .inline-edit:hover, .inline-edit:focus { border: 1px solid #ccc; background: white; }
+    .inline-edit { border: 1px solid transparent; background: transparent; width: 100%; padding: 4px; border-radius: 4px; }
+    .inline-edit:hover, .inline-edit:focus { border: 1px solid #ccc; background: white; outline: none; }
     
-    .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+    .badge { padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; }
     .status-pending { background: #fefce8; color: #854d0e; }
     .status-received { background: #166534; color: white; }
     .status-rts { background: #fee2e2; color: #991b1b; }
     .status-unsigned { background: #eff6ff; color: #1e40af; }
 
-    .delete-btn { color: #ef4444; background: none; border: none; cursor: pointer; font-weight: bold; }
+    .delete-btn { color: #ef4444; background: none; border: none; cursor: pointer; font-size: 16px; padding: 0 10px; }
+    .actor-link { color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: none; }
 </style>
 </head>
 <body>
 
 <div class="header">
-    <h1 style="margin:0; font-size: 20px;">TTM Command Center</h1>
+    <h1 style="margin:0; font-size: 22px; letter-spacing: -0.5px;">Nelson Autograph Tracking</h1>
 </div>
 
 <div class="container">
-    <div class="stats-row">
-        <div class="stat-box"><small>Pending</small><div id="sumPending">0</div></div>
-        <div class="stat-box"><small>Received</small><div id="sumReceived" style="color:#166534">0</div></div>
-        <div class="stat-box"><small>RTS</small><div id="sumRTS" style="color:#991b1b">0</div></div>
-        <div class="stat-box"><small>Unsigned</small><div id="sumUnsigned" style="color:#1e40af">0</div></div>
-    </div>
+    <div class="dashboard-grid">
+        
+        <div class="main-content">
+            <div class="stats-row">
+                <div class="stat-box"><small>Pending</small><div id="sumPending">0</div></div>
+                <div class="stat-box"><small>Received</small><div id="sumReceived" style="color:#166534">0</div></div>
+                <div class="stat-box"><small>RTS</small><div id="sumRTS" style="color:#991b1b">0</div></div>
+                <div class="stat-box"><small>Unsigned</small><div id="sumUnsigned" style="color:#1e40af">0</div></div>
+            </div>
 
-    <button type="button" id="toggleFormBtn" onclick="toggleForm()">+ Add New Entry</button>
-    <div id="formContent">
-        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px;">
-            <input id="f_name" class="form-input" placeholder="Name">
-            <select id="f_role" class="form-input">
-                <option value="Actor">Actor</option>
-                <option value="Director">Director</option>
-                <option value="Producer">Producer</option>
-                <option value="Writer">Writer</option>
-                <option value="Voice Actor">Voice Actor</option>
-                <option value="Musician">Musician</option>
-            </select>
-            <input id="f_known" class="form-input" placeholder="Known For">
-        </div>
-        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:15px; margin-top:10px;">
-            <input id="f_address" class="form-input" placeholder="Address">
-            <input id="f_datesent" class="form-input" type="date">
-        </div>
-        <button type="button" onclick="addEntry()" style="background:#10b981; color:white; width:100%; padding:10px; border:none; border-radius:6px; cursor:pointer; font-weight:700; margin-top:15px;">Save to Database</button>
-    </div>
+            <button type="button" id="toggleFormBtn" onclick="toggleForm()">+ Add New Collector Entry</button>
+            <div id="formContent">
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px;">
+                    <div><label><small>Name</small></label><input id="f_name" class="form-input" placeholder="Name"></div>
+                    <div><label><small>Role</small></label>
+                        <select id="f_role" class="form-input">
+                            <option value="Actor">Actor</option>
+                            <option value="Director">Director</option>
+                            <option value="Producer">Producer</option>
+                            <option value="Writer">Writer</option>
+                            <option value="Voice Actor">Voice Actor</option>
+                            <option value="Musician">Musician</option>
+                            <option value="Athlete">Athlete</option>
+                        </select>
+                    </div>
+                    <div><label><small>Known For</small></label><input id="f_known" class="form-input" placeholder="Movie/Show"></div>
+                </div>
+                <div style="display:grid; grid-template-columns: 2fr 1fr; gap:15px; margin-top:10px;">
+                    <div><label><small>Mailing Address</small></label><input id="f_address" class="form-input" placeholder="Address"></div>
+                    <div><label><small>Date Sent</small></label><input id="f_datesent" class="form-input" type="date"></div>
+                </div>
+                <button type="button" onclick="addEntry()" style="background:#10b981; color:white; width:100%; padding:12px; border:none; border-radius:8px; cursor:pointer; font-weight:700; margin-top:15px;">Save Entry</button>
+            </div>
 
-    <div style="display:flex; gap:10px; margin: 20px 0;">
-        <input id="search" style="flex:1;" placeholder="🔍 Search name or movie..." oninput="sortAndRender()">
-        <select id="sortBy" onchange="sortAndRender()">
-            <option value="created_at">Sort: Recently Added</option>
-            <option value="name">Sort: Name (A-Z)</option>
-            <option value="date_sent">Sort: Date Sent</option>
-        </select>
-        <div style="background:white; padding:5px 10px; border:1px solid #ddd; border-radius:8px; font-size:12px;">
-            CSV Upload: <input type="file" id="csvFile" accept=".csv" style="font-size:10px;">
-            <button onclick="uploadCSV()" style="cursor:pointer">Upload</button>
-        </div>
-    </div>
+            <div style="display:flex; gap:10px; margin: 25px 0 10px;">
+                <input id="search" style="flex:1;" placeholder="🔍 Search collection..." oninput="sortAndRender()">
+                <select id="sortBy" onchange="sortAndRender()" style="min-width: 180px;">
+                    <option value="created_at">Sort: Recently Added</option>
+                    <option value="name">Sort: Name (A-Z)</option>
+                    <option value="date_sent">Sort: Date Sent</option>
+                    <option value="date_received">Sort: Date Received</option>
+                </select>
+            </div>
 
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>Added</th>
-                    <th>Name</th>
-                    <th>Known For</th>
-                    <th>Address</th>
-                    <th>Sent</th>
-                    <th>Received</th>
-                    <th>Status</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
-    </div>
-    
-    <div style="margin-top: 20px; width: 300px;">
-        <canvas id="pieChart"></canvas>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Recipient</th>
+                            <th>Known For</th>
+                            <th>Sent</th>
+                            <th>Received</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-card">
+                <h3 style="margin:0 0 15px 0; font-size:14px; text-transform:uppercase; color:#64748b;">Collection Stats</h3>
+                <canvas id="pieChart" width="250" height="250"></canvas>
+            </div>
+
+            <div class="sidebar-card" style="margin-top:20px;">
+                <h3 style="margin:0 0 10px 0; font-size:14px; text-transform:uppercase; color:#64748b;">Bulk Import</h3>
+                <input type="file" id="csvFile" accept=".csv" style="font-size:11px; width:100%;">
+                <button onclick="uploadCSV()" style="background:#334155; color:white; width:100%; padding:8px; border:none; border-radius:6px; cursor:pointer; margin-top:10px; font-weight:600;">Upload CSV</button>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -146,7 +163,7 @@ loadData();
 async function addEntry() {
     const name = document.getElementById("f_name").value.trim();
     const address = document.getElementById("f_address").value.trim();
-    if (!name || !address) return alert("Missing Name or Address");
+    if (!name || !address) return alert("Name & Address required.");
     await sb.from("Tracking").insert([{
         name, address, 
         role_type: document.getElementById("f_role").value,
@@ -162,11 +179,15 @@ function sortAndRender() {
     const search = document.getElementById("search").value.toLowerCase();
     const sortBy = document.getElementById("sortBy").value;
     
-    let filtered = data.filter(d => (d.name||"").toLowerCase().includes(search) || (d.known_for||"").toLowerCase().includes(search));
+    let filtered = data.filter(d => 
+        (d.name||"").toLowerCase().includes(search) || 
+        (d.known_for||"").toLowerCase().includes(search)
+    );
 
     filtered.sort((a, b) => {
         if (sortBy === "name") return (a.name||"").localeCompare(b.name||"");
         if (sortBy === "date_sent") return (b.date_sent||"").localeCompare(a.date_sent||"");
+        if (sortBy === "date_received") return (b.date_received||"").localeCompare(a.date_received||"");
         return (b.created_at||"").localeCompare(a.created_at||"");
     });
     
@@ -174,12 +195,13 @@ function sortAndRender() {
         const isReceived = d.status === 'received' ? 'is-received' : '';
         return `
         <tr class="${isReceived}">
-            <td style="font-size:10px; color:#94a3b8;">${new Date(d.created_at).toLocaleDateString()}</td>
-            <td><div class="actor-link" onclick="window.open('https://www.google.com/search?q=${d.name}+autograph+address', '_blank')">${d.name}</div></td>
+            <td>
+                <div class="actor-link" onclick="window.open('https://www.google.com/search?q=${d.name}+autograph+address', '_blank')">${d.name}</div>
+                <div style="font-size:10px; opacity:0.6;">${d.role_type}</div>
+            </td>
             <td><input class="inline-edit" value="${d.known_for || ''}" onchange="updateField('${d.id}', 'known_for', this.value)"></td>
-            <td style="font-size:11px; opacity:0.8;">${d.address}</td>
-            <td>${d.date_sent || '—'}</td>
-            <td><input type="date" class="inline-edit" value="${d.date_received || ''}" onchange="updateField('${d.id}', 'date_received', this.value)"></td>
+            <td style="font-size:12px;">${d.date_sent || '—'}</td>
+            <td><input type="date" class="inline-edit" style="font-size:11px;" value="${d.date_received || ''}" onchange="updateField('${d.id}', 'date_received', this.value)"></td>
             <td>
                 <select onchange="updateStatus('${d.id}', this.value)" class="badge status-${d.status}">
                     <option value="pending" ${d.status==='pending'?'selected':''}>Pending</option>
@@ -195,6 +217,7 @@ function sortAndRender() {
 async function updateField(id, field, val) {
     const obj = {}; obj[field] = val || null;
     await sb.from("Tracking").update(obj).eq("id", id);
+    loadData(); // Reload to refresh sorting if changed
 }
 
 async function updateStatus(id, status) {
@@ -205,7 +228,7 @@ async function updateStatus(id, status) {
 }
 
 async function deleteEntry(id) {
-    if(confirm("Delete?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
+    if(confirm("Permanently delete this entry?")) { await sb.from("Tracking").delete().eq("id", id); loadData(); }
 }
 
 function updateStats() {
@@ -215,14 +238,24 @@ function updateStats() {
     document.getElementById("sumReceived").innerText = s.received;
     document.getElementById("sumRTS").innerText = s.rts;
     document.getElementById("sumUnsigned").innerText = s.unsigned;
+    
     if (chart) chart.destroy();
     chart = new Chart(document.getElementById("pieChart"), {
         type: 'doughnut',
         data: {
-            labels: ["Received.", "Pending.", "RTS", "Unsigned"],
-            datasets: [{ data: [s.received, s.pending, s.rts, s.unsigned], backgroundColor: ["#10b981","#fbbf24","#ef4444","#3b82f6"], borderWidth: 0 }]
+            labels: ["Received", "Pending", "RTS", "Unsigned"],
+            datasets: [{ 
+                data: [s.received, s.pending, s.rts, s.unsigned], 
+                backgroundColor: ["#10b981","#fbbf24","#ef4444","#3b82f6"], 
+                borderWidth: 0,
+                cutout: '75%'
+            }]
         },
-        options: { plugins: { legend: { position: 'bottom' } } }
+        options: { 
+            plugins: { 
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } 
+            } 
+        }
     });
 }
 
